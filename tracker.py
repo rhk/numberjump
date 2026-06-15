@@ -15,9 +15,9 @@ HSV_UPPER_GREEN = (85, 255, 255)
 HSV_LOWER_ORANGE = (5, 150, 150)
 HSV_UPPER_ORANGE = (25, 255, 255)
 
-# Active defaults
-DEFAULT_HSV_LOWER = HSV_LOWER_GREEN
-DEFAULT_HSV_UPPER = HSV_UPPER_GREEN
+# Active defaults — orange is more trackable than green (rare in backgrounds, strong signal)
+DEFAULT_HSV_LOWER = HSV_LOWER_ORANGE
+DEFAULT_HSV_UPPER = HSV_UPPER_ORANGE
 
 WARPED_SIZE = (640, 480)
 

@@ -120,11 +120,13 @@ class Game:
         self.last_zone: Optional[int] = None
         self.last_debug_frame = None
 
-        self.font_huge = pygame.font.SysFont(None, 72)
-        self.font_large = pygame.font.SysFont(None, 48)
-        self.font_med = pygame.font.SysFont(None, 36)
-        self.font_small = pygame.font.SysFont(None, 28)
-        self.font_symbol = pygame.font.SysFont(None, 200)
+        # DejaVu Sans covers ★ ● ◆ ♥ and other Unicode symbols; fall back to default if absent
+        _sym_font = "dejavusans"
+        self.font_huge = pygame.font.SysFont(_sym_font, 72)
+        self.font_large = pygame.font.SysFont(_sym_font, 48)
+        self.font_med = pygame.font.SysFont(_sym_font, 36)
+        self.font_small = pygame.font.SysFont(_sym_font, 28)
+        self.font_symbol = pygame.font.SysFont(_sym_font, 200)
 
         self.cam_type, self.cam = _open_camera()
         if self.cam_type is None:
