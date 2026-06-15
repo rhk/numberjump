@@ -112,7 +112,7 @@ def main():
     args = parser.parse_args()
 
     pygame.init()
-    screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
+    screen = pygame.display.set_mode((WINDOW_W, WINDOW_H), pygame.SCALED | pygame.RESIZABLE)
     pygame.display.set_caption("NumberJump")
 
     # Language selection

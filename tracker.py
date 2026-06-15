@@ -87,6 +87,7 @@ class Tracker:
         transform_matrix: Optional[np.ndarray],
         zone: Optional[int],
         centroid: Optional[tuple],
+        zone_labels: dict = None,
     ) -> np.ndarray:
         """Return annotated warped frame for display."""
         if transform_matrix is not None:
@@ -109,8 +110,12 @@ class Tracker:
             col = (z - 1) % 3
             tx = col * w // 3 + w // 9
             ty = row * h // 3 + h // 9
+            if zone_labels is not None and z not in zone_labels:
+                cv2.putText(debug, ".", (tx - 4, ty + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50, 50, 50), 1)
+                continue
+            label = zone_labels[z] if zone_labels else str(z)
             color = (0, 255, 255) if z == zone else (200, 200, 200)
-            cv2.putText(debug, str(z), (tx - 10, ty + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 2)
+            cv2.putText(debug, label, (tx - 10, ty + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 2)
 
         # Draw centroid
         if centroid is not None:

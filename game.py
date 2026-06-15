@@ -20,7 +20,7 @@ FEED_W, FEED_H = 400, 300
 # Modes available per tier
 TIER_CONFIG = {
     "tiny": {
-        "zones": [1, 2, 3],
+        "zones": [1, 3, 7],
         "timeout": 9,
         "modes": ["jump"],
     },
@@ -37,6 +37,9 @@ TIER_CONFIG = {
 }
 
 CONSECUTIVE_FRAMES_NEEDED = 3
+
+TINY_SYMBOLS = {1: "★", 3: "●", 7: "◆"}
+TINY_CV2_LABELS = {1: "*", 3: "O", 7: "<>"}
 
 
 class State(Enum):
@@ -121,6 +124,7 @@ class Game:
         self.font_large = pygame.font.SysFont(None, 48)
         self.font_med = pygame.font.SysFont(None, 36)
         self.font_small = pygame.font.SysFont(None, 28)
+        self.font_symbol = pygame.font.SysFont(None, 200)
 
         self.cam_type, self.cam = _open_camera()
         if self.cam_type is None:
@@ -149,7 +153,10 @@ class Game:
 
         if r.mode == "jump":
             r.target = self._pick_zone(self.round.target if self.round else None)
-            r.display_text = f"{self._s('prompt_prefix')} {r.target}"
+            if self.tier == "tiny":
+                r.display_text = TINY_SYMBOLS.get(r.target, str(r.target))
+            else:
+                r.display_text = f"{self._s('prompt_prefix')} {r.target}"
 
         elif r.mode in ("math_add", "math_sub"):
             # Pick answer first, then build equation
@@ -280,14 +287,22 @@ class Game:
                     elif event.key == pygame.K_RETURN:
                         if self.state == State.WAITING:
                             self._start_round()
+                    elif event.key == pygame.K_r:
+                        if self.state == State.WAITING:
+                            from calibration import run_calibration
+                            _release_camera(self.cam_type, self.cam)
+                            calib = run_calibration(screen, self.strings)
+                            self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
+                            self.cam_type, self.cam = _open_camera()
 
             frame = _grab_frame(self.cam_type, self.cam) if self.cam_type else None
             zone = None
             debug_frame = None
             if frame is not None:
                 zone, centroid = self.tracker.find_zone(frame, self.transform_matrix)
+                cv2_labels = TINY_CV2_LABELS if self.tier == "tiny" else None
                 debug_frame = self.tracker.get_debug_frame(
-                    frame, self.transform_matrix, zone, centroid
+                    frame, self.transform_matrix, zone, centroid, zone_labels=cv2_labels
                 )
                 self.last_zone = zone
                 self.last_debug_frame = debug_frame
@@ -310,6 +325,9 @@ class Game:
         if self.state == State.WAITING:
             prompt_text = f"{self._s('press_enter')}  —  {self._s('waiting')}"
             color = (200, 200, 255)
+        elif self.state in (State.DETECTING, State.SEQ_DETECTING) and self.tier == "tiny":
+            prompt_text = ""
+            color = (255, 255, 100)
         elif self.state in (State.DETECTING, State.SEQ_DETECTING):
             if self.round.mode == "sequence":
                 done = self.round.seq_index
@@ -332,6 +350,16 @@ class Game:
 
         prompt_surf = self.font_huge.render(prompt_text, True, color)
         screen.blit(prompt_surf, (WINDOW_W // 2 - prompt_surf.get_width() // 2, 20))
+
+        if self.state == State.WAITING:
+            hint = self.font_small.render("R = recalibrate", True, (120, 120, 160))
+            screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, 80))
+
+        if self.tier == "tiny" and self.state == State.DETECTING and self.round:
+            sym = TINY_SYMBOLS.get(self.round.target, "?")
+            sym_surf = self.font_symbol.render(sym, True, (255, 255, 100))
+            screen.blit(sym_surf, (WINDOW_W // 2 - sym_surf.get_width() // 2,
+                                   WINDOW_H // 2 - sym_surf.get_height() // 2))
 
         # Camera feed
         feed_x = (WINDOW_W - FEED_W) // 2
@@ -386,7 +414,8 @@ class Game:
 
         # Detected zone
         if zone is not None:
-            zt = self.font_med.render(f"{self._s('detecting')} {zone}", True, (180, 255, 180))
+            zone_label = TINY_SYMBOLS.get(zone, str(zone)) if self.tier == "tiny" else str(zone)
+            zt = self.font_med.render(f"{self._s('detecting')} {zone_label}", True, (180, 255, 180))
         else:
             zt = self.font_med.render(self._s("detecting"), True, (140, 140, 140))
         screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, bottom_y + 40))
