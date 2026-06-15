@@ -20,7 +20,7 @@ FEED_W, FEED_H = 400, 300
 # Modes available per tier
 TIER_CONFIG = {
     "tiny": {
-        "zones": [1, 3, 7],
+        "zones": [1, 3, 7, 9],
         "timeout": 9,
         "modes": ["jump"],
     },
@@ -38,8 +38,8 @@ TIER_CONFIG = {
 
 CONSECUTIVE_FRAMES_NEEDED = 3
 
-TINY_SYMBOLS = {1: "★", 3: "●", 7: "◆"}
-TINY_CV2_LABELS = {1: "*", 3: "O", 7: "<>"}
+TINY_SYMBOLS = {1: "★", 3: "●", 7: "◆", 9: "♥"}
+TINY_CV2_LABELS = {1: "*", 3: "O", 7: "<>", 9: "<3"}
 
 
 class State(Enum):
