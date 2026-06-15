@@ -369,25 +369,27 @@ class Game:
             hint = self.font_small.render("R = recalibrate", True, (120, 120, 160))
             screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, 80))
 
+        # Camera feed — hidden in tiny mode so the symbol can use the full screen
+        feed_x = (WINDOW_W - FEED_W) // 2
+        feed_y = 120
+        if self.tier != "tiny":
+            if debug_frame is not None:
+                feed_rgb = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
+                feed_small = cv2.resize(feed_rgb, (FEED_W, FEED_H))
+                feed_surf = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
+                screen.blit(feed_surf, (feed_x, feed_y))
+            else:
+                pygame.draw.rect(screen, (40, 40, 60), (feed_x, feed_y, FEED_W, FEED_H))
+                no_cam = self.font_med.render("No camera", True, (180, 80, 80))
+                screen.blit(no_cam, (feed_x + FEED_W // 2 - no_cam.get_width() // 2,
+                                     feed_y + FEED_H // 2))
+
+        # Large symbol for tiny mode — drawn after camera block so nothing covers it
         if self.tier == "tiny" and self.state == State.DETECTING and self.round:
             sym = TINY_SYMBOLS.get(self.round.target, "?")
             sym_surf = self.font_symbol.render(sym, True, (255, 255, 100))
             screen.blit(sym_surf, (WINDOW_W // 2 - sym_surf.get_width() // 2,
                                    WINDOW_H // 2 - sym_surf.get_height() // 2))
-
-        # Camera feed
-        feed_x = (WINDOW_W - FEED_W) // 2
-        feed_y = 120
-        if debug_frame is not None:
-            feed_rgb = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
-            feed_small = cv2.resize(feed_rgb, (FEED_W, FEED_H))
-            feed_surf = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
-            screen.blit(feed_surf, (feed_x, feed_y))
-        else:
-            pygame.draw.rect(screen, (40, 40, 60), (feed_x, feed_y, FEED_W, FEED_H))
-            no_cam = self.font_med.render("No camera", True, (180, 80, 80))
-            screen.blit(no_cam, (feed_x + FEED_W // 2 - no_cam.get_width() // 2,
-                                 feed_y + FEED_H // 2))
 
         # Sequence progress dots
         if self.state == State.SEQ_DETECTING and self.round.seq_targets:
