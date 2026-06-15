@@ -114,37 +114,83 @@ Start with **Go To** mode only. Add modes iteratively.
 
 ---
 
+## Language Support
+
+The game supports **Finnish and English**, selectable at startup.
+
+Language selection screen (first boot / title screen):
+- "Suomi / Finnish" → sets language to `fi`
+- "English" → sets language to `en`
+
+All user-facing text and audio are loaded from language packs. Default: Finnish.
+
+### Finnish audio clip examples
+| Event | Finnish | English |
+|---|---|---|
+| Prompt | "Hyppää numeroon SEITSEMÄN!" | "Jump to number SEVEN!" |
+| Success | "Hienoa!" / "Oikein!" | "Great!" / "Correct!" |
+| Failure | "Väärä numero, yritä uudelleen!" | "Wrong number, try again!" |
+| Timeout | "Aika loppui!" | "Time's up!" |
+| Welcome | "Tervetuloa Numerohyppyyn!" | "Welcome to Number Jump!" |
+| Streak | "Loistava putki!" | "Amazing streak!" |
+
+Age tier names in Finnish: **Pikku** (Tiny), **Juniori** (Junior), **Haaste** (Challenge).
+
+---
+
 ## Audio Design (Primary Interface)
 
 Audio is the main channel. Screen is secondary/optional.
 
-Required audio clips:
-- Number prompts: "Jump to number ONE" … "Jump to number NINE" (9 clips)
-- Math prompts (Junior/Challenge): "Two plus five" etc.
-- Success sound — positive, punchy
-- Failure sound — clear but not discouraging
-- Countdown beeps — 3, 2, 1
-- Timeout sound
-- Level up / streak sounds
-- Welcome / instructions clip
+Required audio clips (recorded in **both Finnish and English**):
+- Number prompts: "Hyppää numeroon YKSI" … "YHDEKSÄN" (9 clips × 2 languages)
+- Math prompts (Junior/Challenge): "Kaksi plus viisi" / "Two plus five" etc.
+- Success sound — positive, punchy (may be language-neutral SFX)
+- Failure sound — clear but not discouraging (may be language-neutral SFX)
+- Countdown beeps — 3, 2, 1 (language-neutral)
+- Timeout sound (language-neutral)
+- Level up / streak sounds (language-neutral)
+- Welcome / instructions clip (per language)
 
 **All clips pre-recorded as .wav files.** No runtime TTS.
 Tone: energetic and encouraging for Tiny/Junior; faster-paced for Challenge.
+
+### Audio file layout
+```
+audio/
+  fi/
+    prompt_1.wav … prompt_9.wav
+    success.wav
+    fail.wav
+    welcome.wav
+    timeout.wav
+    streak.wav
+  en/
+    prompt_1.wav … prompt_9.wav
+    success.wav
+    fail.wav
+    welcome.wav
+    timeout.wav
+    streak.wav
+  sfx/
+    beep_3.wav  beep_2.wav  beep_1.wav
+    levelup.wav
+```
 
 ---
 
 ## Display (Secondary)
 
-If a screen is connected, show:
+If a screen is connected, show (text in selected language):
 
 ```
 ┌─────────────────────────────────┐
 │                                 │
-│      BIG PROMPT: "Go to 7!"     │
+│    ISOLLA: "Hyppää numeroon 7!" │
 │                                 │
-│  [small camera feed + overlay]  [⏱ 5s] │
+│  [kamerakuva + ruudukko]  [⏱ 5s]│
 │                                 │
-│   Score: 12     Streak: 3 🔥    │
+│   Pisteet: 12     Putki: 3 🔥   │
 └─────────────────────────────────┘
 ```
 
@@ -155,13 +201,14 @@ and reassuring for parents watching.
 
 ## Build Order
 
-1. **Camera + calibration** — capture feed, let adult mark mat corners, draw zone grid overlay
-2. **Color tracking** — detect sock blob, identify which zone centroid falls in
-3. **Basic game loop** — "Go To" mode only, audio prompts, success/fail detection, timer
-4. **Score + streak** — persist during session
-5. **Age tiers** — select at start, adjust zones used + timer length
-6. **Additional game modes** — Math, Sequence, Simon Says
-7. **Display UI** — pygame screen with prompt + camera feed (do last, not required for v1)
+1. **Language system** — `lang/fi.json` and `lang/en.json` string tables; `audio/fi/` and `audio/en/` clip directories; language selected at startup
+2. **Camera + calibration** — capture feed, let adult mark mat corners, draw zone grid overlay
+3. **Color tracking** — detect sock blob, identify which zone centroid falls in
+4. **Basic game loop** — "Go To" / "Hyppää" mode only, audio prompts, success/fail detection, timer
+5. **Score + streak** — persist during session
+6. **Age tiers** — Pikku / Juniori / Haaste, select at start
+7. **Additional game modes** — Math/Lasku, Sequence/Järjestys, Simon Says
+8. **Display UI** — pygame screen with prompt + camera feed (do last, not required for v1)
 
 ---
 
