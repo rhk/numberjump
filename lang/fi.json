@@ -1,0 +1,22 @@
+{
+  "title": "NumerohyppY",
+  "select_language": "Valitse kieli",
+  "select_tier": "Valitse taso",
+  "tier_tiny": "Pikku (3-5 v)",
+  "tier_junior": "Juniori (6-10 v)",
+  "tier_challenge": "Haaste (11-15 v)",
+  "calibration_title": "Kalibrointi",
+  "calibration_instructions": "Klikkaa maton neljä kulmaa järjestyksessä:\nvasemmalta ylhäältä myötäpäivään.",
+  "calibration_done": "Kalibrointi valmis! Paina ENTER aloittaaksesi.",
+  "prompt_prefix": "Hyppää numeroon",
+  "seq_prompt": "Hyppää järjestyksessä",
+  "correct": "Oikein!",
+  "wrong": "Väärä, yritä uudelleen!",
+  "timeout": "Aika loppui!",
+  "score": "Pisteet",
+  "streak": "Putki",
+  "game_over": "Peli ohi!",
+  "press_enter": "Paina ENTER",
+  "waiting": "Odota...",
+  "detecting": "Etsitään jalkaasi..."
+}

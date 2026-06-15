@@ -1,0 +1,22 @@
+{
+  "title": "NumberJump",
+  "select_language": "Select language",
+  "select_tier": "Select level",
+  "tier_tiny": "Tiny (3-5 y)",
+  "tier_junior": "Junior (6-10 y)",
+  "tier_challenge": "Challenge (11-15 y)",
+  "calibration_title": "Calibration",
+  "calibration_instructions": "Click the four corners of the mat\nin order: top-left, clockwise.",
+  "calibration_done": "Calibration done! Press ENTER to start.",
+  "prompt_prefix": "Jump to number",
+  "seq_prompt": "Jump in order",
+  "correct": "Correct!",
+  "wrong": "Wrong, try again!",
+  "timeout": "Time's up!",
+  "score": "Score",
+  "streak": "Streak",
+  "game_over": "Game over!",
+  "press_enter": "Press ENTER",
+  "waiting": "Waiting...",
+  "detecting": "Finding your foot..."
+}
