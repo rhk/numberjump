@@ -102,15 +102,19 @@ Player's body may also occlude feet when facing away from camera.
 
 For Tiny tier, consider using **colors or animals** instead of numbers, with matching zone labels.
 
-### Game mode ideas
+### Game modes by tier
 
-- **Go To** — "Jump to 7!" Single target, timed
-- **Math** — "3 + 4 = ?" Player runs to answer
-- **Sequence** — Show/speak a 3-number sequence, player hits them in order
-- **Simon Says** — Sequence grows each round
-- **Speed Run** — Hit as many correct zones as possible in 30 seconds
+| Mode | Pikku (Tiny) | Juniori | Haaste |
+|---|---|---|---|
+| **Hyppää** (Go To) | ✅ only mode | ✅ | ✅ |
+| **Lasku** (Math) | ✗ | ✅ addition only | ✅ addition + subtraction |
+| **Järjestys** (Sequence) | ✗ | ✅ 3 numbers | ✅ 3 numbers, faster |
 
-Start with **Go To** mode only. Add modes iteratively.
+- **Hyppää** — "Hyppää numeroon 7!" → player jumps to zone 7
+- **Lasku** — "Paljonko on 2 plus 3?" → player jumps to zone 5
+- **Järjestys** — "Hyppää järjestyksessä: 3, 5, 9" → player hits each zone in order; all three must be hit to score
+
+Randomly mixed within a session for Junior/Challenge.
 
 ---
 
@@ -142,39 +146,58 @@ Age tier names in Finnish: **Pikku** (Tiny), **Juniori** (Junior), **Haaste** (C
 
 Audio is the main channel. Screen is secondary/optional.
 
-Required audio clips (recorded in **both Finnish and English**):
-- Number prompts: "Hyppää numeroon YKSI" … "YHDEKSÄN" (9 clips × 2 languages)
-- Math prompts (Junior/Challenge): "Kaksi plus viisi" / "Two plus five" etc.
-- Success sound — positive, punchy (may be language-neutral SFX)
-- Failure sound — clear but not discouraging (may be language-neutral SFX)
-- Countdown beeps — 3, 2, 1 (language-neutral)
-- Timeout sound (language-neutral)
-- Level up / streak sounds (language-neutral)
-- Welcome / instructions clip (per language)
-
 **All clips pre-recorded as .wav files.** No runtime TTS.
 Tone: energetic and encouraging for Tiny/Junior; faster-paced for Challenge.
+
+### Composable audio architecture
+
+Rather than recording every possible sentence, prompts are **assembled from short atomic clips** played in sequence at runtime. This keeps the total clip count small (~25/language) while supporting unlimited game mode combinations.
+
+**Playback:** `pygame.mixer` queues clips one after another with no gap. Each atomic clip is recorded with natural leading/trailing silence trimmed.
+
+### Atomic clips per language
+
+| File | Content (Finnish) | Used by |
+|---|---|---|
+| `num_1.wav` … `num_9.wav` | "yksi" … "yhdeksän" (bare word) | All modes |
+| `prompt_jump.wav` | "Hyppää numeroon" | Hyppää mode |
+| `math_question.wav` | "Paljonko on" | Lasku mode |
+| `op_plus.wav` | "plus" | Lasku (addition) |
+| `op_minus.wav` | "miinus" | Lasku (subtraction) |
+| `seq_intro.wav` | "Hyppää järjestyksessä:" | Järjestys mode |
+| `success.wav` | "Oikein!" / "Hienoa!" | All modes |
+| `fail.wav` | "Väärä numero!" | All modes |
+| `timeout.wav` | "Aika loppui!" | All modes |
+| `welcome.wav` | "Tervetuloa NumerohyppYyn!" | Startup |
+| `streak.wav` | "Loistava putki!" | All modes |
+
+### Prompt assembly examples
+
+```
+Hyppää mode:   prompt_jump  →  num_7
+Lasku mode:    math_question  →  num_2  →  op_plus  →  num_3
+Järjestys:     seq_intro  →  num_3  →  num_5  →  num_9
+```
+
+### Language-neutral SFX (`audio/sfx/`)
+
+`beep_1.wav`, `beep_2.wav`, `beep_3.wav`, `levelup.wav`
 
 ### Audio file layout
 ```
 audio/
   fi/
-    prompt_1.wav … prompt_9.wav
-    success.wav
-    fail.wav
-    welcome.wav
-    timeout.wav
-    streak.wav
+    num_1.wav … num_9.wav
+    prompt_jump.wav
+    math_question.wav
+    op_plus.wav
+    op_minus.wav
+    seq_intro.wav
+    success.wav  fail.wav  timeout.wav  welcome.wav  streak.wav
   en/
-    prompt_1.wav … prompt_9.wav
-    success.wav
-    fail.wav
-    welcome.wav
-    timeout.wav
-    streak.wav
+    (same filenames, English content)
   sfx/
-    beep_3.wav  beep_2.wav  beep_1.wav
-    levelup.wav
+    beep_1.wav  beep_2.wav  beep_3.wav  levelup.wav
 ```
 
 ---
@@ -201,13 +224,13 @@ and reassuring for parents watching.
 
 ## Build Order
 
-1. **Language system** — `lang/fi.json` and `lang/en.json` string tables; `audio/fi/` and `audio/en/` clip directories; language selected at startup
-2. **Camera + calibration** — capture feed, let adult mark mat corners, draw zone grid overlay
-3. **Color tracking** — detect sock blob, identify which zone centroid falls in
-4. **Basic game loop** — "Go To" / "Hyppää" mode only, audio prompts, success/fail detection, timer
-5. **Score + streak** — persist during session
-6. **Age tiers** — Pikku / Juniori / Haaste, select at start
-7. **Additional game modes** — Math/Lasku, Sequence/Järjestys, Simon Says
+1. **Language system** ✅ — `lang/fi.json`, `lang/en.json`, startup menus
+2. **Camera + calibration** ✅ — perspective transform, `calibration.json`
+3. **Color tracking** ✅ — HSV blob → zone 1–9
+4. **Basic game loop** ✅ — Hyppää mode, timer, success/fail
+5. **Composable audio** — refactor `audio.py` to chain atomic clips; update `tools/generate_silence.py` for new clip names
+6. **Lasku mode** — math prompts (addition for Junior, +subtraction for Challenge)
+7. **Järjestys mode** — 3-number sequence, fixed length
 8. **Display UI** — pygame screen with prompt + camera feed (do last, not required for v1)
 
 ---
