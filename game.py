@@ -120,13 +120,19 @@ class Game:
         self.last_zone: Optional[int] = None
         self.last_debug_frame = None
 
-        # DejaVu Sans covers ★ ● ◆ ♥ and other Unicode symbols; fall back to default if absent
-        _sym_font = "dejavusans"
-        self.font_huge = pygame.font.SysFont(_sym_font, 72)
-        self.font_large = pygame.font.SysFont(_sym_font, 48)
-        self.font_med = pygame.font.SysFont(_sym_font, 36)
-        self.font_small = pygame.font.SysFont(_sym_font, 28)
-        self.font_symbol = pygame.font.SysFont(_sym_font, 200)
+        # Resolve a Unicode-capable font path (DejaVu Sans covers ★ ● ◆ ♥)
+        _font_path = (
+            pygame.font.match_font("dejavusans")
+            or pygame.font.match_font("freesans")
+            or pygame.font.match_font("unifont")
+        )
+        def _f(size):
+            return pygame.font.Font(_font_path, size) if _font_path else pygame.font.SysFont(None, size)
+        self.font_huge   = _f(72)
+        self.font_large  = _f(48)
+        self.font_med    = _f(36)
+        self.font_small  = _f(28)
+        self.font_symbol = _f(200)
 
         self.cam_type, self.cam = _open_camera()
         if self.cam_type is None:
@@ -190,7 +196,11 @@ class Game:
             return r
 
         # Fire audio for jump mode (math_add/sub fire their own above)
-        self.audio.prompt_jump(r.target)
+        if self.tier == "tiny":
+            # TODO: record sym_star/sym_ball/sym_diamond/sym_heart clips per language
+            self.audio.play_number(r.target)
+        else:
+            self.audio.prompt_jump(r.target)
         return r
 
     # ------------------------------------------------------------------ #
@@ -302,6 +312,8 @@ class Game:
             debug_frame = None
             if frame is not None:
                 zone, centroid = self.tracker.find_zone(frame, self.transform_matrix)
+                if self.tier == "tiny" and zone not in TINY_SYMBOLS:
+                    zone, centroid = None, None
                 cv2_labels = TINY_CV2_LABELS if self.tier == "tiny" else None
                 debug_frame = self.tracker.get_debug_frame(
                     frame, self.transform_matrix, zone, centroid, zone_labels=cv2_labels
