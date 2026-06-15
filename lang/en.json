@@ -9,6 +9,7 @@
   "calibration_instructions": "Click the four corners of the mat\nin order: top-left, clockwise.",
   "calibration_done": "Calibration done! Press ENTER to start.",
   "prompt_prefix": "Jump to number",
+  "seq_prompt": "Jump in order",
   "correct": "Correct!",
   "wrong": "Wrong, try again!",
   "timeout": "Time's up!",

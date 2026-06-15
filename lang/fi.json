@@ -9,6 +9,7 @@
   "calibration_instructions": "Klikkaa maton neljä kulmaa järjestyksessä:\nvasemmalta ylhäältä myötäpäivään.",
   "calibration_done": "Kalibrointi valmis! Paina ENTER aloittaaksesi.",
   "prompt_prefix": "Hyppää numeroon",
+  "seq_prompt": "Hyppää järjestyksessä",
   "correct": "Oikein!",
   "wrong": "Väärä, yritä uudelleen!",
   "timeout": "Aika loppui!",
