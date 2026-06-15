@@ -45,9 +45,10 @@ class Tracker:
 
         hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
 
-        # Only look in lower 2/3 of frame (feet, not torso)
         h, w = hsv.shape[:2]
-        roi_start = h // 3
+        # When a perspective warp is active, the warped area is mat-only — no torso present.
+        # Without a warp (raw frame), skip the top third to avoid detecting green clothing.
+        roi_start = 0 if transform_matrix is not None else h // 3
         hsv_roi = hsv[roi_start:, :]
 
         mask = cv2.inRange(hsv_roi, self.hsv_lower, self.hsv_upper)
