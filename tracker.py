@@ -15,9 +15,9 @@ HSV_UPPER_GREEN = (85, 255, 255)
 HSV_LOWER_ORANGE = (5, 150, 150)
 HSV_UPPER_ORANGE = (25, 255, 255)
 
-# Active defaults
-DEFAULT_HSV_LOWER = HSV_LOWER_GREEN
-DEFAULT_HSV_UPPER = HSV_UPPER_GREEN
+# Active defaults — orange is more trackable than green (rare in backgrounds, strong signal)
+DEFAULT_HSV_LOWER = HSV_LOWER_ORANGE
+DEFAULT_HSV_UPPER = HSV_UPPER_ORANGE
 
 WARPED_SIZE = (640, 480)
 
@@ -45,9 +45,10 @@ class Tracker:
 
         hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
 
-        # Only look in lower 2/3 of frame (feet, not torso)
         h, w = hsv.shape[:2]
-        roi_start = h // 3
+        # When a perspective warp is active, the warped area is mat-only — no torso present.
+        # Without a warp (raw frame), skip the top third to avoid detecting green clothing.
+        roi_start = 0 if transform_matrix is not None else h // 3
         hsv_roi = hsv[roi_start:, :]
 
         mask = cv2.inRange(hsv_roi, self.hsv_lower, self.hsv_upper)
@@ -87,6 +88,7 @@ class Tracker:
         transform_matrix: Optional[np.ndarray],
         zone: Optional[int],
         centroid: Optional[tuple],
+        zone_labels: dict = None,
     ) -> np.ndarray:
         """Return annotated warped frame for display."""
         if transform_matrix is not None:
@@ -109,8 +111,12 @@ class Tracker:
             col = (z - 1) % 3
             tx = col * w // 3 + w // 9
             ty = row * h // 3 + h // 9
+            if zone_labels is not None and z not in zone_labels:
+                cv2.putText(debug, ".", (tx - 4, ty + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50, 50, 50), 1)
+                continue
+            label = zone_labels[z] if zone_labels else str(z)
             color = (0, 255, 255) if z == zone else (200, 200, 200)
-            cv2.putText(debug, str(z), (tx - 10, ty + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 2)
+            cv2.putText(debug, label, (tx - 10, ty + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 2)
 
         # Draw centroid
         if centroid is not None:
