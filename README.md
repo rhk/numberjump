@@ -1,32 +1,108 @@
 # NumerohyppY / NumberJump
 
-An interactive floor movement game for kids. Numbered zones (1–9) are arranged in a 3×3 grid on the floor. An overhead camera tracks a brightly colored sock. Audio prompts tell the player where to jump — the camera confirms they got there.
+An interactive floor movement game for kids. Zones are arranged in a 3×3 grid on the floor. A camera tracks a brightly coloured sock. Audio prompts tell the player where to jump — the camera confirms they got there.
+
+---
+
+## How it looks
+
+### Junior / Challenge — numbered mat
+
+```
+┌───┬───┬───┐
+│ 1 │ 2 │ 3 │
+├───┼───┼───┤
+│ 4 │ 5 │ 6 │
+├───┼───┼───┤
+│ 7 │ 8 │ 9 │
+└───┴───┴───┘
+     ▲ player stands here
+```
+
+### Tiny — symbol corners only
+
+```
+┌───┬───┬───┐
+│ ★ │   │ ● │
+├───┼───┼───┤
+│   │   │   │
+├───┼───┼───┤
+│ ◆ │   │ ♥ │
+└───┴───┴───┘
+     ▲ player stands here
+```
+
+### Game screen — Junior / Challenge
+
+```
+┌─────────────────────────────────────────┐
+│           Hyppää numeroon 7             │  ← large prompt
+│              R = recalibrate            │
+│   ┌──────────────────────────────┐      │
+│   │  live camera  │ 1 │ 2 │ 3 │  │      │
+│   │  with 3×3     │ 4 │ 5 │ 6 │  │      │
+│   │  grid overlay │ 7 │●8 │ 9 │  │      │
+│   └──────────────────────────────┘      │
+│   ████████████░░░░░░░░  timer bar       │
+│  Score: 12                Streak: 3     │
+│             detecting: 8                │
+└─────────────────────────────────────────┘
+```
+
+### Game screen — Tiny mode
+
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│                                         │
+│                   ★                     │
+│           (full-screen symbol)          │
+│                                         │
+│                                         │
+│  Score: 3                 Streak: 1     │
+│              detecting: ★               │
+└─────────────────────────────────────────┘
+```
+
+### Calibration — click order
+
+```
+① ────────────────── ②
+│                    │
+│      mat area      │
+│                    │
+④ ────────────────── ③
+```
+
+---
 
 ## Game modes
 
-| Mode | Finnish | What happens |
+| Mode | Example prompt | Description |
 |---|---|---|
-| Hyppää | "Hyppää numeroon 7!" | Jump to a single number |
-| Lasku | "Paljonko on 2 plus 3?" | Run to the answer |
-| Järjestys | "Hyppää järjestyksessä: 3, 5, 9" | Hit three zones in order |
+| Jump | "Hyppää numeroon 7!" | Jump to a single numbered zone |
+| Math | "Paljonko on 2 plus 3?" | Run to the answer |
+| Sequence | "Hyppää järjestyksessä: 3, 5, 9" | Hit three zones in the given order |
 
 ### Age tiers
 
-| Tier | Age | Modes |
-|---|---|---|
-| Pikku | 3–5 v | Hyppää only, zones 1–3, 9 s timer |
-| Juniori | 6–10 v | Hyppää + Lasku (yhteenlasku) + Järjestys, 6 s |
-| Haaste | 11–15 v | Same + vähennyslasku, 3 s |
+| Tier | Finnish | Age | Zones | Modes | Timer |
+|---|---|---|---|---|---|
+| Tiny | Pikku | 3–5 y | ★ ● ◆ ♥ at corners | Jump only | 9 s |
+| Junior | Juniori | 6–10 y | 1–9 | Jump + Math (add) + Sequence | 6 s |
+| Challenge | Haaste | 11–15 y | 1–9 | Jump + Math (add/sub) + Sequence | 3 s |
+
+In Tiny mode the four symbols are placed at the four corners of the mat (zones 1, 3, 7, 9), as far apart as possible. The camera feed is hidden and the target symbol fills the screen.
 
 ---
 
 ## Hardware
 
-- Raspberry Pi 3 (or any PC/laptop for development)
-- Camera: RaspiCam (CSI) or any USB webcam
-- Speaker: wired 3.5 mm
-- Play mat: 9 numbered paper squares in a 3×3 grid
-- Bright colored sock (lime green or orange) worn by the player
+- Raspberry Pi 3+ or any PC/laptop for development
+- Camera: RaspiCam v2/v3 (CSI, recommended) or any USB webcam
+- Speaker: wired 3.5 mm (Bluetooth adds 100–200 ms latency — avoid)
+- Play mat: 9 squares in a 3×3 grid (numbered for Junior/Challenge; symbol pictures for Tiny)
+- **Bright orange socks** worn by the player (orange is the most trackable colour — see [Sock colour](#sock-colour))
 
 ---
 
@@ -42,15 +118,13 @@ git checkout main
 
 ### 2. Install dependencies
 
-**No virtual environment required** — install directly:
-
 ```bash
 pip install -r requirements.txt
 ```
 
 On Raspberry Pi, `picamera2` is pre-installed via the OS. On a laptop the game falls back to any USB/built-in webcam automatically.
 
-> On Pi you may need `sudo apt install python3-opencv python3-pygame` if pip install fails.
+> On Pi you may need: `sudo apt install python3-opencv python3-pygame fonts-dejavu`
 
 ### 3. Generate placeholder audio (first run / dev without real clips)
 
@@ -58,56 +132,79 @@ On Raspberry Pi, `picamera2` is pre-installed via the OS. On a laptop the game f
 python tools/generate_silence.py
 ```
 
-This creates silent `.wav` stubs so the game runs without crashing. Replace them with real recordings later (see [Audio clips](#audio-clips) below).
+This creates silent `.wav` stubs so the game runs without crashing. Replace them with real recordings later (see [Audio clips](#audio-clips)).
 
 ---
 
 ## Running the game
 
 ```bash
-# Full startup (language selector → tier selector → calibration if needed → game)
+# Full startup (language → tier → calibration if needed → game)
 python main.py
 
-# Skip menus — go straight to Finnish / Juniori
+# Skip menus — go straight to Finnish / Junior
 python main.py --lang fi --tier junior
 
 # Force redo the mat calibration
 python main.py --recalibrate
 ```
 
+The window scales to fill your screen automatically. It is not exclusive fullscreen — you can Alt-Tab away normally.
+
 ### Keyboard controls
 
 | Key | Action |
 |---|---|
 | ENTER | Start a round (from waiting screen) |
+| R | Recalibrate the mat without restarting |
 | ESC | Quit |
-| ↑ / ↓ | Navigate menus |
-| Mouse click | Select menu buttons, click mat corners during calibration |
+| Mouse click | Select menu buttons; click mat corners during calibration |
 
 ---
 
 ## Calibration
 
-On first run a camera window opens. Click the **four corners of the mat** in order:
+On first run a camera window opens. Click the **four corners of the mat** in order (top-left → top-right → bottom-right → bottom-left, i.e. clockwise from top-left):
 
 ```
-1 (top-left) → 2 (top-right) → 3 (bottom-right) → 4 (bottom-left)
+① ────────────────── ②
+│                    │
+④ ────────────────── ③
 ```
 
-Press **ENTER** to confirm. Calibration is saved to `calibration.json` and reused on every subsequent run. Re-run with `--recalibrate` if the camera moves.
+Press **ENTER** to confirm. Calibration is saved to `calibration.json` and reused on every run.
+
+To redo calibration: press **R** during the waiting screen in-game, or restart with `--recalibrate`.
 
 ---
 
-## Sock color
+## Sock colour
 
-Default: **lime green** (HSV 35–85). To switch to orange, edit the top of `tracker.py`:
+Default: **bright orange** (HSV 5–25). Orange is the recommended choice — it is rare in natural backgrounds (floors, walls, grass) and gives a clean HSV signal.
+
+Lime green is also pre-configured as an alternative. To switch, edit the top of `tracker.py`:
 
 ```python
+# Orange (default — recommended)
 DEFAULT_HSV_LOWER = HSV_LOWER_ORANGE
 DEFAULT_HSV_UPPER = HSV_UPPER_ORANGE
+
+# Lime green (alternative)
+DEFAULT_HSV_LOWER = HSV_LOWER_GREEN
+DEFAULT_HSV_UPPER = HSV_UPPER_GREEN
 ```
 
-**Rule:** the sock color must not appear on any zone paper. Pick sock color first, then choose zone papers to avoid it.
+**Rule:** the sock colour must not appear on any zone square or the floor. Pick sock colour first, then choose zone papers to avoid it.
+
+### Camera recommendations
+
+| Camera | Quality | Notes |
+|---|---|---|
+| RaspiCam v2/v3 (CSI) | Best | Low latency, lockable exposure, no USB overhead |
+| Modern laptop webcam | Good | Rolling shutter causes blur on fast jumps; autofocus can drift |
+| Old USB webcam | Usable | Lower resolution and colour fidelity; needs wider HSV tolerances |
+
+Key factors in order of importance: **frame rate** (≥30 fps), **exposure lock**, **latency**.
 
 ---
 
@@ -115,30 +212,59 @@ DEFAULT_HSV_UPPER = HSV_UPPER_ORANGE
 
 Place `.wav` files in `audio/fi/` (Finnish) or `audio/en/` (English). Missing files are silently skipped.
 
-| File | Finnish content | English content |
+### Numbers
+
+| File | Finnish | English |
 |---|---|---|
 | `num_1.wav` … `num_9.wav` | "yksi" … "yhdeksän" | "one" … "nine" |
-| `prompt_jump.wav` | "Hyppää numeroon" | "Jump to number" |
-| `math_question.wav` | "Paljonko on" | "What is" |
-| `op_plus.wav` | "plus" | "plus" |
-| `op_minus.wav` | "miinus" | "minus" |
-| `seq_intro.wav` | "Hyppää järjestyksessä:" | "Jump in order:" |
-| `success.wav` | "Oikein!" | "Correct!" |
-| `fail.wav` | "Väärä!" | "Wrong!" |
-| `timeout.wav` | "Aika loppui!" | "Time's up!" |
-| `welcome.wav` | "Tervetuloa!" | "Welcome!" |
-| `streak.wav` | "Loistava putki!" | "Amazing streak!" |
 
-Language-neutral SFX in `audio/sfx/`: `beep_1.wav`, `beep_2.wav`, `beep_3.wav`, `levelup.wav`
+### Game prompts
+
+| File | Finnish | English | Used with |
+|---|---|---|---|
+| `prompt_jump.wav` | "Hyppää numeroon…" | "Jump to number…" | + `num_N.wav` |
+| `prompt_symbol.wav` | "Hyppää…" | "Jump to the…" | + `sym_*.wav` (Tiny mode) |
+| `math_question.wav` | "Paljonko on…" | "How much is…" | + `num_A`, `op_*`, `num_B` |
+| `op_plus.wav` | "plus" | "plus" | between numbers |
+| `op_minus.wav` | "miinus" | "minus" | between numbers |
+| `seq_intro.wav` | "Hyppää järjestyksessä…" | "Jump in order…" | + number sequence |
+
+### Symbol names (Tiny mode)
+
+These are played after `prompt_symbol.wav`. Use the form that sounds natural after "Hyppää…" / "Jump to the…"
+
+| File | Finnish | English |
+|---|---|---|
+| `sym_star.wav` | "tähteen" | "star" |
+| `sym_ball.wav` | "palloon" | "ball" |
+| `sym_diamond.wav` | "timanttiin" | "diamond" |
+| `sym_heart.wav` | "sydämeen" | "heart" |
+
+### Feedback
+
+| File | Finnish | English |
+|---|---|---|
+| `success.wav` | "Oikein!" | "Correct!" |
+| `fail.wav` | "Aika loppui!" | "Time's up!" |
+| `streak.wav` | "Mahtavaa, jatkat putkea!" | "Great, you're on a streak!" |
+| `welcome.wav` | "Tervetuloa NumerohyppY-peliin!" | "Welcome to NumberJump!" |
+
+### Sound effects (language-neutral)
+
+Placed in `audio/sfx/`: `beep_1.wav`, `beep_2.wav`, `beep_3.wav`, `levelup.wav`
 
 ---
 
 ## Raspberry Pi tips
 
-- Use 640×480 resolution (already the default — higher causes lag on Pi 3).
-- Boot straight into the game — add to `/etc/rc.local` or a systemd service:
+- Use 640×480 camera resolution (already the default — higher causes lag on Pi 3).
+- Install the DejaVu font package so symbols render correctly:
+  ```bash
+  sudo apt install fonts-dejavu
   ```
+- Boot straight into the game by adding to `/etc/rc.local` or a systemd service:
+  ```bash
   python /home/pi/numberjump/main.py --lang fi --tier junior
   ```
-- Use a fast SD card (Samsung or SanDisk A1/A2).
+- Use a fast SD card (Samsung or SanDisk A1/A2 class).
 - Wired speaker only — Bluetooth adds 100–200 ms latency.
