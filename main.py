@@ -9,7 +9,7 @@ import numpy as np
 import pygame
 
 import lang as lang_module
-from calibration import CALIBRATION_FILE, load_calibration, run_calibration
+from calibration import CALIBRATION_FILE, load_calibration, run_calibration, run_color_training
 from game import Game
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -206,6 +206,7 @@ def main():
     parser.add_argument("--lang", choices=["fi", "en"], default=None, help="Language (default: show selection screen)")
     parser.add_argument("--tier", choices=["tiny", "junior", "challenge"], default=None)
     parser.add_argument("--recalibrate", action="store_true", help="Force re-calibration even if calibration.json exists")
+    parser.add_argument("--retrain-color", action="store_true", help="Force color re-training even if color is already saved")
     args = parser.parse_args()
 
     pygame.init()
@@ -233,6 +234,7 @@ def main():
 
     # Calibration
     transform_matrix = None
+    calib = None
     if not args.recalibrate:
         calib = load_calibration()
         if calib is not None:
@@ -245,8 +247,21 @@ def main():
         calib = run_calibration(screen, strings)
         transform_matrix = np.array(calib["transform"], dtype=np.float64)
 
+    # Color training
+    hsv_lower = None
+    hsv_upper = None
+    if args.retrain_color or calib is None or "hsv_lower" not in calib:
+        color_data = run_color_training(screen, strings)
+        hsv_lower = tuple(color_data["hsv_lower"])
+        hsv_upper = tuple(color_data["hsv_upper"])
+    else:
+        hsv_lower = tuple(calib["hsv_lower"])
+        hsv_upper = tuple(calib["hsv_upper"])
+        logger.info(f"Loaded existing color: lower={hsv_lower} upper={hsv_upper}")
+
     # Start game
-    game = Game(lang=lang_code, tier=tier, strings=strings, transform_matrix=transform_matrix)
+    game = Game(lang=lang_code, tier=tier, strings=strings, transform_matrix=transform_matrix,
+                hsv_lower=hsv_lower, hsv_upper=hsv_upper)
     game.run(screen)
 
     pygame.quit()

@@ -101,6 +101,8 @@ class Game:
         tier: str,
         strings: dict,
         transform_matrix: Optional[np.ndarray],
+        hsv_lower: Optional[tuple] = None,
+        hsv_upper: Optional[tuple] = None,
     ):
         self.lang = lang
         self.tier = tier
@@ -109,7 +111,12 @@ class Game:
         self.config = TIER_CONFIG[tier]
 
         self.audio = AudioPlayer(lang)
-        self.tracker = Tracker()
+        tracker_kwargs = {}
+        if hsv_lower is not None:
+            tracker_kwargs["hsv_lower"] = hsv_lower
+        if hsv_upper is not None:
+            tracker_kwargs["hsv_upper"] = hsv_upper
+        self.tracker = Tracker(**tracker_kwargs)
 
         self.state = State.WAITING
         self.score = 0

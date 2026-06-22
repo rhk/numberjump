@@ -23,11 +23,14 @@ python main.py --lang fi --tier junior   # tiers: tiny | junior | challenge
 
 # Force re-run camera calibration
 python main.py --recalibrate
+
+# Force re-run colour training (teach the system a new object colour)
+python main.py --retrain-color
 ```
 
 There are no tests, no linter config, and no build step.
 
-`calibration.json` is gitignored — it is generated at runtime when the user clicks the four mat corners.
+`calibration.json` is gitignored — it is generated at runtime and stores the perspective transform (4 mat corners + 4×3 matrix) **and** the trained HSV colour range (`hsv_lower`, `hsv_upper`).
 
 ## Architecture
 
@@ -35,11 +38,12 @@ The codebase is a thin pygame application with a linear startup sequence followe
 
 ### Startup flow (`main.py`)
 
-1. Parse `--lang`, `--tier`, `--recalibrate` CLI args.
+1. Parse `--lang`, `--tier`, `--recalibrate`, `--retrain-color` CLI args.
 2. Show language-selection screen (pygame UI) unless `--lang` given.
 3. Show tier-selection screen unless `--tier` given.
 4. Load calibration from `calibration.json`; if missing or `--recalibrate`, run `calibration.py` first.
-5. Instantiate and run `Game`.
+5. Load HSV colour range from `calibration.json`; if missing or `--retrain-color`, run colour training screen (`run_color_training` in `calibration.py`).
+6. Instantiate and run `Game` with the loaded transform matrix and HSV bounds.
 
 ### Core modules
 
@@ -47,7 +51,7 @@ The codebase is a thin pygame application with a linear startup sequence followe
 |---|---|
 | `game.py` | State machine (WAITING → DETECTING / SEQ_DETECTING → SUCCESS / FAIL), renders pygame UI, drives audio and tracker each frame |
 | `tracker.py` | Reads a camera frame, applies perspective transform, HSV-thresholds the sock color, maps centroid to zone 1–9 |
-| `calibration.py` | Interactive corner-click UI → saves `calibration.json` with the 4×3 perspective matrix |
+| `calibration.py` | Interactive corner-click UI → saves perspective matrix to `calibration.json`; also hosts `run_color_training()` (click-to-sample HSV) and `save_color()` (merges HSV fields into the same JSON) |
 | `audio.py` | Assembles and plays composable audio sequences from atomic `.wav` clips; supports sync and async playback |
 | `lang.py` | Loads `lang/fi.json` or `lang/en.json` for UI strings |
 
@@ -78,9 +82,11 @@ Both `calibration.py` and `game.py` open the camera the same way: try `picamera2
 
 Clips are small atomic `.wav` files in `audio/fi/`, `audio/en/`, `audio/sfx/`. `AudioPlayer` assembles prompts by concatenating clip filenames and playing them in sequence. Missing clips are logged as warnings and skipped — the game continues. Use `tools/generate_silence.py` to create silent stubs for development.
 
-### Sock color
+### Object colour
 
-Default tracker color is **orange** (HSV 5–25). Orange is preferred — it is rare in natural backgrounds. To switch to lime green, change the two `DEFAULT_HSV_*` constants at the top of `tracker.py`. The sock color must not appear on any floor square.
+The tracked object colour is **learned at runtime** via the colour training screen — no code edits needed. The computed HSV range is stored in `calibration.json` (`hsv_lower` / `hsv_upper`) and passed to `Tracker(hsv_lower=..., hsv_upper=...)` at startup.
+
+Fallback defaults in `tracker.py` (`DEFAULT_HSV_LOWER` / `DEFAULT_HSV_UPPER`) are orange (HSV 5–25) and are only used if no trained colour exists. The object colour must not appear on any floor square.
 
 ### Adding a language
 

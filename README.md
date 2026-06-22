@@ -139,7 +139,7 @@ This creates silent `.wav` stubs so the game runs without crashing. Replace them
 ## Running the game
 
 ```bash
-# Full startup (language → tier → calibration if needed → game)
+# Full startup (language → tier → calibration → colour training → game)
 python main.py
 
 # Skip menus — go straight to Finnish / Junior
@@ -147,18 +147,21 @@ python main.py --lang fi --tier junior
 
 # Force redo the mat calibration
 python main.py --recalibrate
+
+# Force redo the object colour training
+python main.py --retrain-color
 ```
 
 The window scales to fill your screen automatically. It is not exclusive fullscreen — you can Alt-Tab away normally.
 
 ### Keyboard controls
 
-| Key | Action |
+| Key / input | Action |
 |---|---|
-| ENTER | Start a round (from waiting screen) |
+| ENTER | Start a round (from waiting screen); confirm calibration / colour sample |
 | R | Recalibrate the mat without restarting |
 | ESC | Quit |
-| Mouse click | Select menu buttons; click mat corners during calibration |
+| Mouse click | Select menu buttons; click mat corners during calibration; click object during colour training |
 
 ---
 
@@ -178,23 +181,30 @@ To redo calibration: press **R** during the waiting screen in-game, or restart w
 
 ---
 
-## Sock colour
+## Colour training
 
-Default: **bright orange** (HSV 5–25). Orange is the recommended choice — it is rare in natural backgrounds (floors, walls, grass) and gives a clean HSV signal.
+On first launch (or whenever you switch objects) a colour training screen opens after calibration. Place the tracking object on the floor in front of the camera, then **click on it**. The system samples the colour from a patch around your click, shows a preview swatch, and lets you re-click to resample.
 
-Lime green is also pre-configured as an alternative. To switch, edit the top of `tracker.py`:
+Press **ENTER** to confirm. The HSV range is saved to `calibration.json` alongside the perspective transform and reused on every run — no code edits needed.
 
-```python
-# Orange (default — recommended)
-DEFAULT_HSV_LOWER = HSV_LOWER_ORANGE
-DEFAULT_HSV_UPPER = HSV_UPPER_ORANGE
-
-# Lime green (alternative)
-DEFAULT_HSV_LOWER = HSV_LOWER_GREEN
-DEFAULT_HSV_UPPER = HSV_UPPER_GREEN
+```
+① Place the object on the floor in the camera's view
+② Click on the object in the live feed
+③ Check the colour swatch preview — click again if it looks wrong
+④ Press ENTER to save and continue to the game
 ```
 
-**Rule:** the sock colour must not appear on any zone square or the floor. Pick sock colour first, then choose zone papers to avoid it.
+To redo colour training: restart with `--retrain-color`.
+
+---
+
+## Sock / object colour
+
+The tracker works with any brightly coloured object — sock, ping pong ball, glove, etc. The colour is learned at runtime via the training screen above rather than hardcoded.
+
+**Recommended starting colours:** bright orange or lime green. These are rare in natural backgrounds (floors, walls, furniture) and produce a clean HSV signal even under variable indoor lighting.
+
+**Rule:** the object colour must not appear on any zone square or the floor. Pick object colour first, then choose zone papers to avoid it.
 
 ### Camera recommendations
 

@@ -18,5 +18,9 @@
   "game_over": "Game over!",
   "press_enter": "Press ENTER",
   "waiting": "Waiting...",
-  "detecting": "Zone:"
+  "detecting": "Zone:",
+  "color_train_title": "Colour Training",
+  "color_train_instructions": "Place your object (ball/sock) on the floor.\nClick on it to sample its colour.",
+  "color_train_confirm": "Press ENTER to confirm",
+  "color_train_retry": "Click again to re-sample"
 }
