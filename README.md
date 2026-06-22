@@ -37,7 +37,7 @@ An interactive floor movement game for kids. Numbered zones (1–9) are arranged
 ```bash
 git clone https://github.com/rhk/numberjump.git
 cd numberjump
-git checkout claude/tender-curie-afurhv
+git checkout main
 ```
 
 ### 2. Install dependencies
