@@ -134,12 +134,13 @@ class Game:
             or pygame.font.match_font("freesans")
             or pygame.font.match_font("unifont")
         )
+        self._font_path = _font_path
         def _f(size):
             return pygame.font.Font(_font_path, size) if _font_path else pygame.font.SysFont(None, size)
-        self.font_huge   = _f(72)
-        self.font_large  = _f(48)
-        self.font_med    = _f(36)
-        self.font_small  = _f(28)
+        self.font_huge   = _f(56)
+        self.font_large  = _f(38)
+        self.font_med    = _f(32)
+        self.font_small  = _f(24)
         self.font_symbol = _f(200)
 
         self.cam_type, self.cam = _open_camera()
@@ -342,106 +343,201 @@ class Game:
     # Drawing                                                              #
     # ------------------------------------------------------------------ #
 
-    def _draw(self, screen: pygame.Surface, debug_frame, zone: Optional[int]):
-        screen.fill((20, 20, 40))
+    # ------------------------------------------------------------------ #
+    # Drawing helpers                                                      #
+    # ------------------------------------------------------------------ #
 
-        # Prompt text
+    _BG_TOP  = (12, 10, 35)
+    _BG_BOT  = (28, 18, 58)
+
+    def _draw_gradient_bg(self, surface: pygame.Surface):
+        w, h = surface.get_size()
+        for y in range(h):
+            t = y / h
+            r = int(self._BG_TOP[0] + (self._BG_BOT[0] - self._BG_TOP[0]) * t)
+            g = int(self._BG_TOP[1] + (self._BG_BOT[1] - self._BG_TOP[1]) * t)
+            b = int(self._BG_TOP[2] + (self._BG_BOT[2] - self._BG_TOP[2]) * t)
+            pygame.draw.line(surface, (r, g, b), (0, y), (w, y))
+
+    @staticmethod
+    def _draw_pill(surface, rect, fill, border, radius=None):
+        if radius is None:
+            radius = rect.h // 2
+        pygame.draw.rect(surface, fill,   rect, border_radius=radius)
+        pygame.draw.rect(surface, border, rect, 2, border_radius=radius)
+
+    def _render_text_fitted(self, text: str, color: tuple, max_size: int, max_width: int) -> pygame.Surface:
+        if self._font_path:
+            surf = pygame.font.Font(self._font_path, max_size).render(text, True, color)
+        else:
+            surf = pygame.font.SysFont(None, max_size).render(text, True, color)
+        if surf.get_width() > max_width:
+            scale = max_width / surf.get_width()
+            surf = pygame.transform.smoothscale(surf, (max_width, int(surf.get_height() * scale)))
+        return surf
+
+    @staticmethod
+    def _draw_card(surface, rect, fill=(25, 20, 55), border=(60, 50, 110), radius=14):
+        pygame.draw.rect(surface, fill,   rect, border_radius=radius)
+        pygame.draw.rect(surface, border, rect, 2, border_radius=radius)
+
+    # ------------------------------------------------------------------ #
+    # Main draw                                                            #
+    # ------------------------------------------------------------------ #
+
+    def _draw(self, screen: pygame.Surface, debug_frame, zone: Optional[int]):
+        self._draw_gradient_bg(screen)
+
+        # ── State colours ─────────────────────────────────────────────
         if self.state == State.WAITING:
             prompt_text = f"{self._s('press_enter')}  —  {self._s('waiting')}"
-            color = (200, 200, 255)
+            prompt_color = (200, 200, 255)
+            feed_border  = (60, 50, 110)
         elif self.state in (State.DETECTING, State.SEQ_DETECTING) and self.tier == "tiny":
-            prompt_text = ""
-            color = (255, 255, 100)
+            prompt_text  = ""
+            prompt_color = (255, 255, 100)
+            feed_border  = (255, 255, 100)
         elif self.state in (State.DETECTING, State.SEQ_DETECTING):
             if self.round.mode == "sequence":
                 done = self.round.seq_index
-                total = len(self.round.seq_targets)
                 remaining = " → ".join(
                     str(z) for z in self.round.seq_targets[done:]
                 )
                 prompt_text = f"{self._s('seq_prompt')}: {remaining}"
             else:
                 prompt_text = self.round.display_text
-            color = (255, 255, 100)
+            prompt_color = (255, 230, 80)
+            feed_border  = (255, 230, 80)
         elif self.state == State.SUCCESS:
-            prompt_text = self._s("correct")
-            color = (100, 255, 100)
+            prompt_text  = self._s("correct")
+            prompt_color = (74, 255, 160)
+            feed_border  = (74, 255, 160)
         elif self.state == State.FAIL:
-            prompt_text = self._s("timeout")
-            color = (255, 100, 100)
+            prompt_text  = self._s("timeout")
+            prompt_color = (255, 90, 90)
+            feed_border  = (255, 90, 90)
         else:
-            prompt_text, color = "", (255, 255, 255)
+            prompt_text, prompt_color, feed_border = "", (255, 255, 255), (60, 50, 110)
 
-        prompt_surf = self.font_huge.render(prompt_text, True, color)
-        screen.blit(prompt_surf, (WINDOW_W // 2 - prompt_surf.get_width() // 2, 20))
+        # ── Prompt card ───────────────────────────────────────────────
+        card_pad_x, card_pad_y = 24, 10
+        card_bottom = 10  # will be updated below
+        if prompt_text:
+            prompt_surf = self._render_text_fitted(prompt_text, prompt_color, 56, WINDOW_W - 48)
+            card_w = prompt_surf.get_width()  + card_pad_x * 2
+            card_h = prompt_surf.get_height() + card_pad_y * 2
+            card_rect = pygame.Rect(WINDOW_W // 2 - card_w // 2, 8, card_w, card_h)
+            self._draw_card(screen, card_rect)
+            screen.blit(prompt_surf, (card_rect.x + card_pad_x, card_rect.y + card_pad_y))
+            card_bottom = card_rect.bottom
 
+        hint_bottom = card_bottom
         if self.state == State.WAITING:
-            hint = self.font_small.render("R = recalibrate", True, (120, 120, 160))
-            screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, 80))
+            hint = self.font_small.render("R = recalibrate", True, (90, 90, 130))
+            hint_y = card_bottom + 4
+            screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, hint_y))
+            hint_bottom = hint_y + hint.get_height()
 
-        # Camera feed — hidden in tiny mode so the symbol can use the full screen
+        # ── Camera feed ───────────────────────────────────────────────
         feed_x = (WINDOW_W - FEED_W) // 2
-        feed_y = 120
+        feed_y = hint_bottom + 6
         if self.tier != "tiny":
+            feed_rect = pygame.Rect(feed_x - 3, feed_y - 3, FEED_W + 6, FEED_H + 6)
+            pygame.draw.rect(screen, feed_border, feed_rect, border_radius=10)
             if debug_frame is not None:
-                feed_rgb = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
+                feed_rgb   = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
                 feed_small = cv2.resize(feed_rgb, (FEED_W, FEED_H))
-                feed_surf = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
-                screen.blit(feed_surf, (feed_x, feed_y))
+                feed_surf  = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
+                # Clip to rounded rect
+                clip_surf = pygame.Surface((FEED_W, FEED_H), pygame.SRCALPHA)
+                clip_surf.blit(feed_surf, (0, 0))
+                mask_surf = pygame.Surface((FEED_W, FEED_H), pygame.SRCALPHA)
+                mask_surf.fill((0, 0, 0, 0))
+                pygame.draw.rect(mask_surf, (255, 255, 255, 255),
+                                 mask_surf.get_rect(), border_radius=8)
+                clip_surf.blit(mask_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+                screen.blit(clip_surf, (feed_x, feed_y))
             else:
-                pygame.draw.rect(screen, (40, 40, 60), (feed_x, feed_y, FEED_W, FEED_H))
-                no_cam = self.font_med.render("No camera", True, (180, 80, 80))
+                pygame.draw.rect(screen, (30, 25, 55), (feed_x, feed_y, FEED_W, FEED_H),
+                                 border_radius=8)
+                no_cam = self.font_med.render(self._s("no_camera") if "no_camera" in self.strings else "No camera",
+                                              True, (180, 80, 80))
                 screen.blit(no_cam, (feed_x + FEED_W // 2 - no_cam.get_width() // 2,
-                                     feed_y + FEED_H // 2))
+                                     feed_y + FEED_H // 2 - no_cam.get_height() // 2))
 
-        # Large symbol for tiny mode — drawn after camera block so nothing covers it
-        if self.tier == "tiny" and self.state == State.DETECTING and self.round:
+        # ── Large symbol (tiny mode) ───────────────────────────────────
+        if self.tier == "tiny" and self.state in (State.DETECTING, State.SEQ_DETECTING) and self.round:
             sym = TINY_SYMBOLS.get(self.round.target, "?")
-            sym_surf = self.font_symbol.render(sym, True, (255, 255, 100))
+            # Subtle pulsing halo
+            pulse = pygame.time.get_ticks() % 1000 > 500
+            halo_r = 140 if pulse else 120
+            pygame.draw.circle(screen, (50, 40, 100),
+                               (WINDOW_W // 2, WINDOW_H // 2), halo_r)
+            sym_surf = self.font_symbol.render(sym, True, (255, 230, 80))
             screen.blit(sym_surf, (WINDOW_W // 2 - sym_surf.get_width() // 2,
                                    WINDOW_H // 2 - sym_surf.get_height() // 2))
 
-        # Sequence progress dots
+        # ── Sequence progress dots ─────────────────────────────────────
         if self.state == State.SEQ_DETECTING and self.round.seq_targets:
-            dot_y = feed_y + FEED_H + 18
-            spacing = 30
-            total = len(self.round.seq_targets)
-            start_x = WINDOW_W // 2 - (total - 1) * spacing // 2
+            dot_y    = feed_y + FEED_H + 26
+            dot_r    = 14
+            spacing  = dot_r * 3 + 8
+            total    = len(self.round.seq_targets)
+            start_x  = WINDOW_W // 2 - (total - 1) * spacing // 2
             for i, z in enumerate(self.round.seq_targets):
                 cx = start_x + i * spacing
                 if i < self.round.seq_index:
-                    col = (100, 255, 100)   # done
+                    col, outline = (74, 255, 160), (74, 255, 160)
+                    pygame.draw.circle(screen, col, (cx, dot_y), dot_r)
                 elif i == self.round.seq_index:
-                    col = (255, 255, 0)     # current
+                    col, outline = (255, 230, 80), (255, 230, 80)
+                    pygame.draw.circle(screen, col, (cx, dot_y), dot_r)
                 else:
-                    col = (80, 80, 80)      # upcoming
-                pygame.draw.circle(screen, col, (cx, dot_y), 10)
+                    pygame.draw.circle(screen, (20, 15, 50),  (cx, dot_y), dot_r)
+                    pygame.draw.circle(screen, (80, 70, 130), (cx, dot_y), dot_r, 2)
                 lbl = self.font_small.render(str(z), True, (255, 255, 255))
-                screen.blit(lbl, (cx - lbl.get_width() // 2, dot_y + 14))
+                screen.blit(lbl, (cx - lbl.get_width() // 2, dot_y + dot_r + 4))
 
-        # Timer bar
+        # ── Timer bar (pill) ──────────────────────────────────────────
         if self.state in (State.DETECTING, State.SEQ_DETECTING):
-            elapsed = time.time() - self.timer_start
+            elapsed  = time.time() - self.timer_start
             max_time = self.config["timeout"] * (
                 len(self.round.seq_targets) if self.round.mode == "sequence" else 1
             )
-            ratio = max(0.0, 1.0 - elapsed / max_time)
-            bar_y = feed_y + FEED_H + (44 if self.state == State.SEQ_DETECTING else 4)
-            pygame.draw.rect(screen, (60, 60, 60), (feed_x, bar_y, FEED_W, 12))
-            bar_col = (100, 255, 100) if ratio > 0.5 else (255, 200, 0) if ratio > 0.25 else (255, 60, 60)
-            pygame.draw.rect(screen, bar_col, (feed_x, bar_y, int(FEED_W * ratio), 12))
+            ratio    = max(0.0, 1.0 - elapsed / max_time)
+            bar_y    = feed_y + FEED_H + (52 if self.state == State.SEQ_DETECTING else 8)
+            bar_h    = 16
+            bar_rect = pygame.Rect(feed_x, bar_y, FEED_W, bar_h)
+            # Track
+            pygame.draw.rect(screen, (35, 28, 65), bar_rect, border_radius=bar_h // 2)
+            # Fill
+            if ratio > 0:
+                bar_col = (74, 255, 160) if ratio > 0.5 else (255, 200, 50) if ratio > 0.25 else (255, 80, 80)
+                fill_rect = pygame.Rect(feed_x, bar_y, int(FEED_W * ratio), bar_h)
+                pygame.draw.rect(screen, bar_col, fill_rect, border_radius=bar_h // 2)
 
-        # Score / streak
-        bottom_y = WINDOW_H - 80
-        score_surf = self.font_large.render(f"{self._s('score')}: {self.score}", True, (200, 200, 255))
-        streak_surf = self.font_large.render(f"{self._s('streak')}: {self.streak}", True, (255, 220, 100))
-        screen.blit(score_surf, (80, bottom_y))
-        screen.blit(streak_surf, (WINDOW_W - 80 - streak_surf.get_width(), bottom_y))
+        # ── Score / streak badges ─────────────────────────────────────
+        bottom_y  = WINDOW_H - 72
+        pad_x, pad_y = 16, 8
 
-        # Detected zone
+        score_text  = f"{self._s('score')}: {self.score}"
+        streak_text = f"{self._s('streak')}: {self.streak}"
+        score_surf  = self.font_large.render(score_text,  True, (200, 200, 255))
+        streak_surf = self.font_large.render(streak_text, True, (255, 210, 80))
+
+        for surf, x_anchor, align in [
+            (score_surf,  60,              "left"),
+            (streak_surf, WINDOW_W - 60,  "right"),
+        ]:
+            sw = surf.get_width() + pad_x * 2
+            sh = surf.get_height() + pad_y * 2
+            bx = x_anchor if align == "left" else x_anchor - sw
+            badge = pygame.Rect(bx, bottom_y, sw, sh)
+            self._draw_pill(screen, badge, (25, 20, 55), (60, 50, 110))
+            screen.blit(surf, (bx + pad_x, bottom_y + pad_y))
+
+        # ── Detected zone label (only shown when a zone is active) ────
         if zone is not None:
             zone_label = TINY_SYMBOLS.get(zone, str(zone)) if self.tier == "tiny" else str(zone)
-            zt = self.font_med.render(f"{self._s('detecting')} {zone_label}", True, (180, 255, 180))
-        else:
-            zt = self.font_med.render(self._s("detecting"), True, (140, 140, 140))
-        screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, bottom_y + 40))
+            zt = self.font_small.render(f"{self._s('detecting')} {zone_label}", True, (74, 255, 160))
+            screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, WINDOW_H - 28))
