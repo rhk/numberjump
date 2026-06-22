@@ -390,7 +390,7 @@ class Game:
 
         # ── State colours ─────────────────────────────────────────────
         if self.state == State.WAITING:
-            prompt_text = f"{self._s('press_enter')}  —  {self._s('waiting')}"
+            prompt_text = self._s('press_enter')
             prompt_color = (200, 200, 255)
             feed_border  = (60, 50, 110)
         elif self.state in (State.DETECTING, State.SEQ_DETECTING) and self.tier == "tiny":
@@ -446,6 +446,7 @@ class Game:
             pygame.draw.rect(screen, feed_border, feed_rect, border_radius=10)
             if debug_frame is not None:
                 feed_rgb   = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
+                feed_rgb   = cv2.flip(feed_rgb, 1)
                 feed_small = cv2.resize(feed_rgb, (FEED_W, FEED_H))
                 feed_surf  = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
                 # Clip to rounded rect
