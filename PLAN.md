@@ -67,7 +67,8 @@ Total                        ~40ms  →  ~25fps headroom
 ## Vision & Tracking
 
 ### Player tracking
-- Track a **single bright colored sock** (lime green or orange recommended)
+- Track a **single bright coloured object** (sock, ping pong ball, glove — any vivid colour)
+- Object colour is **trained at startup** via a click-to-sample screen; HSV range persisted in `calibration.json` — no code edits needed to switch objects
 - Use HSV color space for robustness under indoor lighting
 - Find the largest blob of that color in the lower portion of the frame
 - Use blob centroid to determine which zone the player is in
@@ -227,6 +228,7 @@ and reassuring for parents watching.
 1. **Language system** ✅ — `lang/fi.json`, `lang/en.json`, startup menus
 2. **Camera + calibration** ✅ — perspective transform, `calibration.json`
 3. **Color tracking** ✅ — HSV blob → zone 1–9
+   - **Color training screen** ✅ — click-to-sample object colour at startup; persisted in `calibration.json`
 4. **Basic game loop** ✅ — Hyppää mode, timer, success/fail
 5. **Composable audio** — refactor `audio.py` to chain atomic clips; update `tools/generate_silence.py` for new clip names
 6. **Lasku mode** — math prompts (addition for Junior, +subtraction for Challenge)
