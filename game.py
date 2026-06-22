@@ -10,6 +10,7 @@ import numpy as np
 import pygame
 
 from audio import AudioPlayer
+from calibration import run_calibration
 from tracker import Tracker
 
 logger = logging.getLogger(__name__)
@@ -301,10 +302,12 @@ class Game:
                             self._start_round()
                     elif event.key == pygame.K_r:
                         if self.state == State.WAITING:
-                            from calibration import run_calibration
                             _release_camera(self.cam_type, self.cam)
-                            calib = run_calibration(screen, self.strings)
-                            self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
+                            try:
+                                calib = run_calibration(screen, self.strings)
+                                self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
+                            except Exception:
+                                pass  # user cancelled or calibration failed — keep old transform
                             self.cam_type, self.cam = _open_camera()
 
             frame = _grab_frame(self.cam_type, self.cam) if self.cam_type else None

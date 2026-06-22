@@ -66,7 +66,7 @@ Each round the game randomly picks a mode (jump, math_add, math_sub, or sequence
 
 | Tier | Zones | Timer | Modes |
 |---|---|---|---|
-| tiny | 1–3 | 9 s | jump only |
+| tiny | ★●◆♥ corners (zones 1,3,7,9) | 9 s | jump only |
 | junior | 1–9 | 6 s | jump, math_add, sequence |
 | challenge | 1–9 | 3 s | jump, math_add, math_sub, sequence |
 
@@ -80,7 +80,7 @@ Clips are small atomic `.wav` files in `audio/fi/`, `audio/en/`, `audio/sfx/`. `
 
 ### Sock color
 
-Default tracker color is **lime green** (HSV 35–85). To switch to orange, change the two `DEFAULT_HSV_*` constants at the top of `tracker.py`. The sock color must not appear on any numbered floor square.
+Default tracker color is **orange** (HSV 5–25). Orange is preferred — it is rare in natural backgrounds. To switch to lime green, change the two `DEFAULT_HSV_*` constants at the top of `tracker.py`. The sock color must not appear on any floor square.
 
 ### Adding a language
 

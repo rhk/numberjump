@@ -245,7 +245,8 @@ These are played after `prompt_symbol.wav`. Use the form that sounds natural aft
 | File | Finnish | English |
 |---|---|---|
 | `success.wav` | "Oikein!" | "Correct!" |
-| `fail.wav` | "Aika loppui!" | "Time's up!" |
+| `fail.wav` | "Väärä!" | "Wrong!" |
+| `timeout.wav` | "Aika loppui!" | "Time's up!" |
 | `streak.wav` | "Mahtavaa, jatkat putkea!" | "Great, you're on a streak!" |
 | `welcome.wav` | "Tervetuloa NumerohyppY-peliin!" | "Welcome to NumberJump!" |
 
