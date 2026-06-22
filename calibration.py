@@ -97,13 +97,13 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
             b = int(BG_TOP[2] + (BG_BOT[2] - BG_TOP[2]) * t)
             pygame.draw.line(screen, (r, g, b), (0, y), (w, y))
 
-    corners = []
+    corners = []      # stored in original 640×480 camera coords
     done = False
 
-    # Feed surface offset inside window — feed is 640×480, window is 800×600
-    # Scale feed to fit with some margin
-    feed_x = (WINDOW_W - FEED_W) // 2
-    feed_y = 72
+    # Display feed scaled down to fit: title(50) + feed(420) + panel(88) + gaps = ~580 < 600
+    DISP_W, DISP_H = 560, 420
+    feed_x = (WINDOW_W - DISP_W) // 2   # 120
+    feed_y = 52
 
     clock = pygame.time.Clock()
 
@@ -120,8 +120,11 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
                     mx, my = event.pos
                     fx = mx - feed_x
                     fy = my - feed_y
-                    if 0 <= fx < FEED_W and 0 <= fy < FEED_H:
-                        corners.append([fx, fy])
+                    if 0 <= fx < DISP_W and 0 <= fy < DISP_H:
+                        # Scale back to original camera resolution for accurate transform
+                        fx_orig = fx * FEED_W / DISP_W
+                        fy_orig = fy * FEED_H / DISP_H
+                        corners.append([fx_orig, fy_orig])
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                 if len(corners) == 4:
                     done = True
@@ -136,26 +139,31 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
         title_surf = font_large.render(
             strings.get("calibration_title", "Calibration"), True, (255, 255, 255)
         )
-        screen.blit(title_surf, (WINDOW_W // 2 - title_surf.get_width() // 2, 18))
+        screen.blit(title_surf, (WINDOW_W // 2 - title_surf.get_width() // 2, 10))
 
         # ── Camera feed with border ────────────────────────────────────
         border_col = SUCCESS_C if len(corners) == 4 else ACCENT
-        border_rect = pygame.Rect(feed_x - 3, feed_y - 3, FEED_W + 6, FEED_H + 6)
+        border_rect = pygame.Rect(feed_x - 3, feed_y - 3, DISP_W + 6, DISP_H + 6)
         pygame.draw.rect(screen, border_col, border_rect, border_radius=10)
 
         if frame is not None:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            feed_surf = pygame.surfarray.make_surface(frame_rgb.swapaxes(0, 1))
+            frame_small = cv2.resize(frame_rgb, (DISP_W, DISP_H))
+            feed_surf = pygame.surfarray.make_surface(frame_small.swapaxes(0, 1))
             screen.blit(feed_surf, (feed_x, feed_y))
         else:
-            pygame.draw.rect(screen, (25, 20, 50), (feed_x, feed_y, FEED_W, FEED_H),
+            pygame.draw.rect(screen, (25, 20, 50), (feed_x, feed_y, DISP_W, DISP_H),
                              border_radius=8)
             no_cam = font_med.render("No camera", True, (200, 80, 80))
-            screen.blit(no_cam, (feed_x + FEED_W // 2 - no_cam.get_width() // 2,
-                                  feed_y + FEED_H // 2 - no_cam.get_height() // 2))
+            screen.blit(no_cam, (feed_x + DISP_W // 2 - no_cam.get_width() // 2,
+                                  feed_y + DISP_H // 2 - no_cam.get_height() // 2))
 
-        # ── Corner markers and connecting lines ───────────────────────
-        drawn = [(c[0] + feed_x, c[1] + feed_y) for c in corners]
+        # ── Corner markers: map from camera coords back to display coords ─
+        drawn = [
+            (int(c[0] * DISP_W / FEED_W) + feed_x,
+             int(c[1] * DISP_H / FEED_H) + feed_y)
+            for c in corners
+        ]
         if len(drawn) > 1:
             # Dashed line: draw short segments
             pts = drawn + ([drawn[0]] if len(drawn) == 4 else [])
@@ -179,8 +187,8 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
             screen.blit(lbl, (pt[0] + 13, pt[1] - 10))
 
         # ── Instructions panel (below feed) ───────────────────────────
-        panel_y = feed_y + FEED_H + 8
-        panel_rect = pygame.Rect(feed_x, panel_y, FEED_W, 80)
+        panel_y = feed_y + DISP_H + 8
+        panel_rect = pygame.Rect(feed_x, panel_y, DISP_W, 80)
         pygame.draw.rect(screen, (20, 16, 50), panel_rect, border_radius=10)
         pygame.draw.rect(screen, (50, 40, 90), panel_rect, 1, border_radius=10)
 

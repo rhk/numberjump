@@ -127,12 +127,13 @@ class Game:
             or pygame.font.match_font("freesans")
             or pygame.font.match_font("unifont")
         )
+        self._font_path = _font_path
         def _f(size):
             return pygame.font.Font(_font_path, size) if _font_path else pygame.font.SysFont(None, size)
-        self.font_huge   = _f(72)
-        self.font_large  = _f(48)
-        self.font_med    = _f(36)
-        self.font_small  = _f(28)
+        self.font_huge   = _f(56)
+        self.font_large  = _f(38)
+        self.font_med    = _f(32)
+        self.font_small  = _f(24)
         self.font_symbol = _f(200)
 
         self.cam_type, self.cam = _open_camera()
@@ -358,6 +359,16 @@ class Game:
         pygame.draw.rect(surface, fill,   rect, border_radius=radius)
         pygame.draw.rect(surface, border, rect, 2, border_radius=radius)
 
+    def _render_text_fitted(self, text: str, color: tuple, max_size: int, max_width: int) -> pygame.Surface:
+        if self._font_path:
+            surf = pygame.font.Font(self._font_path, max_size).render(text, True, color)
+        else:
+            surf = pygame.font.SysFont(None, max_size).render(text, True, color)
+        if surf.get_width() > max_width:
+            scale = max_width / surf.get_width()
+            surf = pygame.transform.smoothscale(surf, (max_width, int(surf.get_height() * scale)))
+        return surf
+
     @staticmethod
     def _draw_card(surface, rect, fill=(25, 20, 55), border=(60, 50, 110), radius=14):
         pygame.draw.rect(surface, fill,   rect, border_radius=radius)
@@ -402,24 +413,27 @@ class Game:
             prompt_text, prompt_color, feed_border = "", (255, 255, 255), (60, 50, 110)
 
         # ── Prompt card ───────────────────────────────────────────────
+        card_pad_x, card_pad_y = 24, 10
+        card_bottom = 10  # will be updated below
         if prompt_text:
-            prompt_surf = self.font_huge.render(prompt_text, True, prompt_color)
-            card_pad_x, card_pad_y = 32, 12
+            prompt_surf = self._render_text_fitted(prompt_text, prompt_color, 56, WINDOW_W - 48)
             card_w = prompt_surf.get_width()  + card_pad_x * 2
             card_h = prompt_surf.get_height() + card_pad_y * 2
-            card_rect = pygame.Rect(
-                WINDOW_W // 2 - card_w // 2, 16, card_w, card_h
-            )
+            card_rect = pygame.Rect(WINDOW_W // 2 - card_w // 2, 8, card_w, card_h)
             self._draw_card(screen, card_rect)
             screen.blit(prompt_surf, (card_rect.x + card_pad_x, card_rect.y + card_pad_y))
+            card_bottom = card_rect.bottom
 
+        hint_bottom = card_bottom
         if self.state == State.WAITING:
             hint = self.font_small.render("R = recalibrate", True, (90, 90, 130))
-            screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, 88))
+            hint_y = card_bottom + 4
+            screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, hint_y))
+            hint_bottom = hint_y + hint.get_height()
 
         # ── Camera feed ───────────────────────────────────────────────
         feed_x = (WINDOW_W - FEED_W) // 2
-        feed_y = 118
+        feed_y = hint_bottom + 6
         if self.tier != "tiny":
             feed_rect = pygame.Rect(feed_x - 3, feed_y - 3, FEED_W + 6, FEED_H + 6)
             pygame.draw.rect(screen, feed_border, feed_rect, border_radius=10)
