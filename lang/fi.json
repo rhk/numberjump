@@ -18,5 +18,9 @@
   "game_over": "Peli ohi!",
   "press_enter": "Paina ENTER",
   "waiting": "Odota...",
-  "detecting": "Etsitään jalkaasi..."
+  "detecting": "Etsitään jalkaasi...",
+  "color_train_title": "Värikoulutus",
+  "color_train_instructions": "Aseta esine (pallo/sukka) lattialle.\nNapsauta sitä opettaaksesi värin.",
+  "color_train_confirm": "Paina ENTER vahvistaaksesi",
+  "color_train_retry": "Napsauta uudelleen näytteistääksesi uudelleen"
 }
