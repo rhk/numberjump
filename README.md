@@ -1,4 +1,4 @@
-# NumerohyppY / NumberJump
+# Numerohyppy / NumberJump
 
 An interactive floor movement game for kids. Zones are arranged in a 3×3 grid on the floor. A camera tracks a brightly coloured sock. Audio prompts tell the player where to jump — the camera confirms they got there.
 
