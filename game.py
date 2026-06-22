@@ -529,10 +529,8 @@ class Game:
             self._draw_pill(screen, badge, (25, 20, 55), (60, 50, 110))
             screen.blit(surf, (bx + pad_x, bottom_y + pad_y))
 
-        # ── Detected zone label ────────────────────────────────────────
+        # ── Detected zone label (only shown when a zone is active) ────
         if zone is not None:
             zone_label = TINY_SYMBOLS.get(zone, str(zone)) if self.tier == "tiny" else str(zone)
-            zt = self.font_med.render(f"{self._s('detecting')} {zone_label}", True, (74, 255, 160))
-        else:
-            zt = self.font_med.render(self._s("detecting"), True, (80, 80, 120))
-        screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, WINDOW_H - 32))
+            zt = self.font_small.render(f"{self._s('detecting')} {zone_label}", True, (74, 255, 160))
+            screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, WINDOW_H - 28))
