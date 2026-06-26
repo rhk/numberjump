@@ -194,7 +194,7 @@ On first run a camera window opens. Click the **four corners of the mat** in ord
 
 Press **ENTER** to confirm. Calibration is saved to `calibration.json` and reused on every run.
 
-To redo calibration: press **R** during the waiting screen in-game, or restart with `--recalibrate`.
+To redo calibration: press **R** during the waiting screen in-game (this re-runs both corner calibration and object-colour training), or restart with `--recalibrate`.
 
 ---
 
