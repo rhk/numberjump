@@ -226,12 +226,6 @@ def main():
     strings = lang_module.load(lang_code)
     pygame.display.set_caption(strings.get("title", "NumberJump"))
 
-    # Tier selection
-    if args.tier:
-        tier = args.tier
-    else:
-        tier = show_tier_selection(screen, strings)
-
     # Calibration
     transform_matrix = None
     calib = None
@@ -259,10 +253,21 @@ def main():
         hsv_upper = tuple(calib["hsv_upper"])
         logger.info(f"Loaded existing color: lower={hsv_lower} upper={hsv_upper}")
 
-    # Start game
-    game = Game(lang=lang_code, tier=tier, strings=strings, transform_matrix=transform_matrix,
-                hsv_lower=hsv_lower, hsv_upper=hsv_upper)
-    game.run(screen)
+    # Game loop — ESC in-game returns here to re-pick the level; ESC on the
+    # level-selection screen (or closing the window) exits the app entirely.
+    first_round = True
+    while True:
+        if args.tier and first_round:
+            tier = args.tier
+        else:
+            tier = show_tier_selection(screen, strings)
+        first_round = False
+
+        game = Game(lang=lang_code, tier=tier, strings=strings, transform_matrix=transform_matrix,
+                    hsv_lower=hsv_lower, hsv_upper=hsv_upper)
+        result = game.run(screen)
+        if result != "menu":
+            break
 
     pygame.quit()
 

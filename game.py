@@ -313,16 +313,24 @@ class Game:
     # Main loop                                                            #
     # ------------------------------------------------------------------ #
 
-    def run(self, screen: pygame.Surface):
+    def run(self, screen: pygame.Surface) -> str:
+        """Run the game loop.
+
+        Returns "menu" if the player pressed ESC (go back to level selection)
+        or "quit" if the window was closed (exit the app).
+        """
         clock = pygame.time.Clock()
         running = True
+        result = "quit"
 
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    result = "quit"
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        result = "menu"
                         running = False
                     elif event.key == pygame.K_RETURN:
                         if self.state == State.WAITING:
@@ -363,6 +371,7 @@ class Game:
             clock.tick(30)
 
         self.cleanup()
+        return result
 
     # ------------------------------------------------------------------ #
     # Drawing                                                              #
@@ -461,7 +470,7 @@ class Game:
 
         hint_bottom = card_bottom
         if self.state == State.WAITING:
-            hint = self.font_small.render("R = recalibrate", True, (90, 90, 130))
+            hint = self.font_small.render("R = recalibrate    ESC = menu", True, (90, 90, 130))
             hint_y = card_bottom + 4
             screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, hint_y))
             hint_bottom = hint_y + hint.get_height()
