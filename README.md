@@ -256,11 +256,11 @@ Place `.wav` files in `audio/fi/` (Finnish) or `audio/en/` (English). Missing fi
 | `op_minus.wav` | "miinus" | "minus" | between numbers |
 | `seq_intro.wav` | "Hyppää järjestyksessä…" | "Jump in order…" | + number sequence |
 
+> Record `op_plus.wav` / `op_minus.wav` for real — the math prompt always plays them between the two numbers (`math_question → num_A → op → num_B`). If they're left as silent placeholders, "1 + 4" sounds like the two numbers run together.
+
 ### Symbol names (Tiny mode)
 
-These are played after `prompt_symbol.wav`. Use the form that sounds natural after "Hyppää…" / "Jump to the…"
-
-> Note: Tiny-mode symbol audio is not wired up yet — the game currently announces the corner's *number* instead. The symbol clips below are reserved for that upcoming feature (see `PLAN.md`).
+Tiny mode plays `prompt_symbol.wav` followed by the matching symbol clip below (zones 1=★, 3=●, 7=◆, 9=♥). Use the form that sounds natural after "Hyppää…" / "Jump to the…"
 
 | File | Finnish | English |
 |---|---|---|
@@ -274,7 +274,6 @@ These are played after `prompt_symbol.wav`. Use the form that sounds natural aft
 | File | Finnish | English |
 |---|---|---|
 | `success.wav` | "Oikein!" | "Correct!" |
-| `fail.wav` | "Väärä!" | "Wrong!" |
 | `timeout.wav` | "Aika loppui!" | "Time's up!" |
 | `streak.wav` | "Mahtavaa, jatkat putkea!" | "Great, you're on a streak!" |
 | `welcome.wav` | "Tervetuloa NumerohyppY-peliin!" | "Welcome to NumberJump!" |

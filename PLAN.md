@@ -15,9 +15,6 @@ the player where to move. The camera confirms they got there. Points, streaks, t
 
 These are the pieces specced for the game that are **not yet implemented**:
 
-- **Tiny-mode symbol audio** — Tiny mode shows ★ ● ◆ ♥ but currently *speaks the corner's number*
-  (`game.py` has a `TODO`). Record `prompt_symbol.wav` + `sym_star/ball/diamond/heart.wav` per
-  language and have `_new_round` play them for Tiny rounds.
 - **Tier auto-detection** — tiers are chosen manually on the start screen. The original brief
   imagined optional auto-detection; not built.
 - **Welcome + SFX wiring** — `welcome.wav` and the `beep_*/levelup` SFX are generated as
