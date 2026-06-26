@@ -226,7 +226,9 @@ class Game:
     def _start_round(self):
         self.round = self._new_round()
         self.consecutive_correct = 0
-        self.timer_start = time.time()
+        # Start the countdown only once the prompt audio has finished playing,
+        # so the timer doesn't run while the question is still being read out.
+        self.timer_start = max(time.time(), self.audio.prompt_finish_time)
         if self.round.mode == "sequence":
             self._enter_state(State.SEQ_DETECTING)
         else:
@@ -510,7 +512,7 @@ class Game:
             max_time = self.config["timeout"] * (
                 len(self.round.seq_targets) if self.round.mode == "sequence" else 1
             )
-            ratio    = max(0.0, 1.0 - elapsed / max_time)
+            ratio    = max(0.0, min(1.0, 1.0 - elapsed / max_time))
             bar_y    = feed_y + FEED_H + (76 if self.state == State.SEQ_DETECTING else 8)
             bar_h    = 16
             bar_rect = pygame.Rect(feed_x, bar_y, FEED_W, bar_h)
