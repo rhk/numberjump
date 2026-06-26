@@ -511,7 +511,7 @@ class Game:
                 len(self.round.seq_targets) if self.round.mode == "sequence" else 1
             )
             ratio    = max(0.0, 1.0 - elapsed / max_time)
-            bar_y    = feed_y + FEED_H + (52 if self.state == State.SEQ_DETECTING else 8)
+            bar_y    = feed_y + FEED_H + (76 if self.state == State.SEQ_DETECTING else 8)
             bar_h    = 16
             bar_rect = pygame.Rect(feed_x, bar_y, FEED_W, bar_h)
             # Track
