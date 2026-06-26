@@ -111,6 +111,11 @@ class Game:
         self.config = TIER_CONFIG[tier]
 
         self.audio = AudioPlayer(lang)
+        # Audio-only mode: when real (non-silent) audio exists for this language
+        # we rely on it alone and hide the task/answer from the screen. With no
+        # real audio we show the task instead. Also gates early recognition.
+        self.audio_only = self.audio.has_real_audio(tier)
+        logger.info("Audio-only mode: %s", self.audio_only)
         tracker_kwargs = {}
         if hsv_lower is not None:
             tracker_kwargs["hsv_lower"] = hsv_lower
@@ -226,9 +231,14 @@ class Game:
     def _start_round(self):
         self.round = self._new_round()
         self.consecutive_correct = 0
-        # Start the countdown only once the prompt audio has finished playing,
-        # so the timer doesn't run while the question is still being read out.
-        self.timer_start = max(time.time(), self.audio.prompt_finish_time)
+        # In audio-only mode start the countdown only once the prompt audio has
+        # finished playing, so neither the timer nor detection runs while the
+        # question is still being read out. With no real audio there is nothing
+        # to wait for (silent stubs still report a length), so start immediately.
+        self.timer_start = (
+            max(time.time(), self.audio.prompt_finish_time)
+            if self.audio_only else time.time()
+        )
         if self.round.mode == "sequence":
             self._enter_state(State.SEQ_DETECTING)
         else:
@@ -241,6 +251,10 @@ class Game:
             pass
 
         elif self.state == State.DETECTING:
+            # Don't recognize the answer (or run the timer) until the prompt
+            # audio has finished — timer_start marks when it ends.
+            if time.time() < self.timer_start:
+                return
             elapsed = time.time() - self.timer_start
             if elapsed >= timeout:
                 self.audio.play("timeout")
@@ -256,6 +270,9 @@ class Game:
                 self.consecutive_correct = 0
 
         elif self.state == State.SEQ_DETECTING:
+            # Wait for the spoken prompt before detecting the first target.
+            if time.time() < self.timer_start:
+                return
             elapsed = time.time() - self.timer_start
             if elapsed >= timeout * len(self.round.seq_targets):
                 self.audio.play("timeout")
@@ -406,7 +423,10 @@ class Game:
             prompt_color = (255, 255, 100)
             feed_border  = (255, 255, 100)
         elif self.state in (State.DETECTING, State.SEQ_DETECTING):
-            if self.round.mode == "sequence":
+            if self.audio_only:
+                # Audio-only: the spoken prompt is the task — keep it off-screen.
+                prompt_text = ""
+            elif self.round.mode == "sequence":
                 done = self.round.seq_index
                 remaining = " → ".join(
                     str(z) for z in self.round.seq_targets[done:]
@@ -474,7 +494,7 @@ class Game:
                                      feed_y + FEED_H // 2 - no_cam.get_height() // 2))
 
         # ── Large symbol (tiny mode) ───────────────────────────────────
-        if self.tier == "tiny" and self.state in (State.DETECTING, State.SEQ_DETECTING) and self.round:
+        if self.tier == "tiny" and not self.audio_only and self.state in (State.DETECTING, State.SEQ_DETECTING) and self.round:
             sym = TINY_SYMBOLS.get(self.round.target, "?")
             # Subtle pulsing halo
             pulse = pygame.time.get_ticks() % 1000 > 500
@@ -486,7 +506,7 @@ class Game:
                                    WINDOW_H // 2 - sym_surf.get_height() // 2))
 
         # ── Sequence progress dots ─────────────────────────────────────
-        if self.state == State.SEQ_DETECTING and self.round.seq_targets:
+        if self.state == State.SEQ_DETECTING and not self.audio_only and self.round.seq_targets:
             dot_y    = feed_y + FEED_H + 26
             dot_r    = 14
             spacing  = dot_r * 3 + 8
