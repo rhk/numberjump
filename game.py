@@ -452,7 +452,6 @@ class Game:
             pygame.draw.rect(screen, feed_border, feed_rect, border_radius=10)
             if debug_frame is not None:
                 feed_rgb   = cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB)
-                feed_rgb   = cv2.flip(feed_rgb, 1)
                 feed_small = cv2.resize(feed_rgb, (FEED_W, FEED_H))
                 feed_surf  = pygame.surfarray.make_surface(feed_small.swapaxes(0, 1))
                 # Clip to rounded rect
