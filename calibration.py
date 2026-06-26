@@ -296,7 +296,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
     font_large = pygame.font.SysFont(None, 40)
     font_small = pygame.font.SysFont(None, 28)
 
-    PATCH = 30  # half-size of sampling patch (in original camera coords)
+    PATCH = 12  # half-size of sampling patch (in original camera coords)
 
     sampled_lower = None
     sampled_upper = None
