@@ -181,20 +181,29 @@ class Game:
                 r.display_text = f"{self._s('prompt_prefix')} {r.target}"
 
         elif r.mode in ("math_add", "math_sub"):
-            # Pick answer first, then build equation
-            r.target = self._pick_zone()
-            answer = r.target
+            # Pick the answer first, then build an equation around it. The answer
+            # is constrained per mode so that neither operand (nor the answer) is
+            # ever 0 and both stay within the available zones.
+            max_zone = max(zones)
             if r.mode == "math_add":
-                a = random.randint(1, answer - 1) if answer > 1 else 1
+                # Two operands >= 1 summing to the answer require answer >= 2
+                # (the only split of 1 is 1 + 0).
+                candidates = [z for z in zones if z >= 2] or [max_zone]
+                answer = random.choice(candidates)
+                a = random.randint(1, answer - 1)
                 b = answer - a
                 r.display_text = f"{a} + {b} = ?"
                 self.audio.prompt_math(a, "+", b)
             else:  # math_sub
-                # a - b = answer  →  a = answer + b, b in 1..4
-                b = random.randint(1, min(4, 9 - answer))
+                # a - b = answer  →  a = answer + b, b >= 1, so the answer must
+                # leave room for a within the zones (answer <= max_zone - 1).
+                candidates = [z for z in zones if z <= max_zone - 1] or [min(zones)]
+                answer = random.choice(candidates)
+                b = random.randint(1, min(4, max_zone - answer))
                 a = answer + b
                 r.display_text = f"{a} - {b} = ?"
                 self.audio.prompt_math(a, "-", b)
+            r.target = answer
             return r  # audio already fired
 
         elif r.mode == "sequence":
@@ -313,16 +322,24 @@ class Game:
     # Main loop                                                            #
     # ------------------------------------------------------------------ #
 
-    def run(self, screen: pygame.Surface):
+    def run(self, screen: pygame.Surface) -> str:
+        """Run the game loop.
+
+        Returns "menu" if the player pressed ESC (go back to level selection)
+        or "quit" if the window was closed (exit the app).
+        """
         clock = pygame.time.Clock()
         running = True
+        result = "quit"
 
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    result = "quit"
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        result = "menu"
                         running = False
                     elif event.key == pygame.K_RETURN:
                         if self.state == State.WAITING:
@@ -363,6 +380,7 @@ class Game:
             clock.tick(30)
 
         self.cleanup()
+        return result
 
     # ------------------------------------------------------------------ #
     # Drawing                                                              #
@@ -461,7 +479,7 @@ class Game:
 
         hint_bottom = card_bottom
         if self.state == State.WAITING:
-            hint = self.font_small.render("R = recalibrate", True, (90, 90, 130))
+            hint = self.font_small.render("R = recalibrate    ESC = menu", True, (90, 90, 130))
             hint_y = card_bottom + 4
             screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, hint_y))
             hint_bottom = hint_y + hint.get_height()
