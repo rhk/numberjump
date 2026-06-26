@@ -1,6 +1,7 @@
 """Audio playback for numberjump — composable atomic clips."""
 import logging
 import time
+import wave
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -9,7 +10,31 @@ logger = logging.getLogger(__name__)
 # 1=★ star, 3=● ball, 7=◆ diamond, 9=♥ heart).
 SYM_CLIPS = {1: "sym_star", 3: "sym_ball", 7: "sym_diamond", 9: "sym_heart"}
 
+# Exact byte size of a silent placeholder clip produced by
+# tools/generate_silence.py (22050 Hz, 16-bit mono, 0.5 s): a 44-byte WAV
+# header plus int(22050 * 0.5) * 2 PCM bytes. Used as a fast first-pass signal
+# for spotting silent stubs without reading the file.
+STUB_WAV_SIZE = 44 + int(22050 * 0.5) * 2
+
 _mixer_initialized = False
+
+
+def _is_silent_wav(path: Path) -> bool:
+    """True if the file looks like a silent placeholder stub.
+
+    Fast path: every stub has the exact same byte size, so a differing size
+    means real audio without reading the file. Only when the size collides with
+    the stub size do we read the (~22 KB) frames and confirm they are all zero.
+    """
+    try:
+        if path.stat().st_size != STUB_WAV_SIZE:
+            return False
+        with wave.open(str(path), "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+        return not any(frames)
+    except Exception as e:
+        logger.warning(f"Could not inspect {path}: {e}")
+        return False
 
 
 def _ensure_mixer():
@@ -46,6 +71,29 @@ class AudioPlayer:
                 return p
         logger.warning(f"Audio clip not found: {clip_name}")
         return None
+
+    def _required_clips(self, tier: str) -> list[str]:
+        """Language clips the given tier needs to run fully on audio alone."""
+        clips = [f"num_{n}" for n in range(1, 10)] + ["prompt_jump"]
+        if tier == "tiny":
+            clips += ["prompt_symbol", *SYM_CLIPS.values()]
+        if tier in ("junior", "challenge"):
+            clips += ["math_question", "op_plus", "seq_intro"]
+        if tier == "challenge":
+            clips += ["op_minus"]
+        return clips
+
+    def has_real_audio(self, tier: str) -> bool:
+        """True only if every required language clip exists and is non-silent.
+
+        Any missing clip or silent placeholder stub makes this False, so the
+        game falls back to showing the task on screen — the safe default.
+        """
+        for clip_name in self._required_clips(tier):
+            path = self.base / self.lang / f"{clip_name}.wav"
+            if not path.exists() or _is_silent_wav(path):
+                return False
+        return True
 
     def _load(self, clip_name: str):
         """Return pygame.mixer.Sound or None."""
