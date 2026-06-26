@@ -4,6 +4,23 @@ An interactive floor movement game for kids. Zones are arranged in a 3×3 grid o
 
 ---
 
+## Features
+
+NumberJump v1 is complete. What's in the box:
+
+- **Audio-first gameplay** — fully playable without a screen. Prompts are assembled at runtime from short atomic `.wav` clips (no live TTS), so a handful of clips cover unlimited prompt combinations.
+- **Two languages** — Finnish and English, chosen on a startup screen. All UI text and audio load from language packs.
+- **Three age tiers** — Tiny (3–5), Junior (6–10) and Challenge (11–15), each with its own zones, timer and allowed game modes.
+- **Three game modes** — Jump (go to a number), Math (addition for Junior; addition + subtraction for Challenge) and Sequence (hit three numbers in order). For Junior/Challenge the modes are mixed randomly within a session.
+- **Tiny mode** — four large symbols (★ ● ◆ ♥) at the mat corners (zones 1, 3, 7, 9). The camera feed is hidden and the target symbol fills the screen.
+- **Runtime mat calibration** — click the four mat corners; the perspective transform is saved to `calibration.json` and reused. Recalibrate in-game with **R**.
+- **Runtime colour training** — click the tracked object to learn its HSV colour; saved alongside the calibration. Switch objects without touching code.
+- **Colour-blob tracking** — OpenCV HSV tracking maps the object's centroid to a zone 1–9. Tuned for a Raspberry Pi 3 (640×480, no ML/pose estimation).
+- **On-screen UI** — live camera feed with a 3×3 grid overlay, large prompt, countdown timer bar, score, streak and sequence-progress dots.
+- **Scoring** — points and streaks, with a streak callout every three correct in a row.
+
+---
+
 ## How it looks
 
 ### Junior / Challenge — numbered mat
@@ -242,6 +259,8 @@ Place `.wav` files in `audio/fi/` (Finnish) or `audio/en/` (English). Missing fi
 ### Symbol names (Tiny mode)
 
 These are played after `prompt_symbol.wav`. Use the form that sounds natural after "Hyppää…" / "Jump to the…"
+
+> Note: Tiny-mode symbol audio is not wired up yet — the game currently announces the corner's *number* instead. The symbol clips below are reserved for that upcoming feature (see `PLAN.md`).
 
 | File | Finnish | English |
 |---|---|---|
