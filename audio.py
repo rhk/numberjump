@@ -28,6 +28,10 @@ class AudioPlayer:
     def __init__(self, lang: str):
         self.lang = lang
         self.base = Path(__file__).parent / "audio"
+        # Wall-clock time at which the most recently triggered audio will
+        # finish playing. Used to delay the round timer until the prompt is
+        # done. Defaults to "now" so a missing/failed clip won't stall it.
+        self.prompt_finish_time = 0.0
         _ensure_mixer()
 
     # ------------------------------------------------------------------ #
@@ -59,9 +63,19 @@ class AudioPlayer:
     # Public API                                                           #
     # ------------------------------------------------------------------ #
 
+    def _clips_length(self, *clip_names: str) -> float:
+        """Total playback length (seconds) of the given clips; missing = 0."""
+        total = 0.0
+        for clip_name in clip_names:
+            sound = self._load(clip_name)
+            if sound is not None:
+                total += sound.get_length()
+        return total
+
     def play(self, clip_name: str) -> None:
         """Play a single clip and return immediately (non-blocking)."""
         sound = self._load(clip_name)
+        self.prompt_finish_time = time.time() + (sound.get_length() if sound else 0.0)
         if sound:
             try:
                 sound.play()
@@ -84,6 +98,7 @@ class AudioPlayer:
     def play_sequence_async(self, *clip_names: str) -> None:
         """Fire-and-forget: play sequence in a daemon thread."""
         import threading
+        self.prompt_finish_time = time.time() + self._clips_length(*clip_names)
         t = threading.Thread(target=self.play_sequence, args=clip_names, daemon=True)
         t.start()
 
