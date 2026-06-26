@@ -296,14 +296,16 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
     font_large = pygame.font.SysFont(None, 40)
     font_small = pygame.font.SysFont(None, 28)
 
-    PATCH = 30  # half-size of sampling patch
+    PATCH = 30  # half-size of sampling patch (in original camera coords)
 
     sampled_lower = None
     sampled_upper = None
     sampled_color_rgb = None  # preview color for display
 
-    feed_x = (WINDOW_W - FEED_W) // 2
-    feed_y = 80
+    # Display feed scaled down to fit: title(~50) + feed(420) + panel(110) fits in 600.
+    DISP_W, DISP_H = 560, 420
+    feed_x = (WINDOW_W - DISP_W) // 2   # 120
+    feed_y = 52
 
     clock = pygame.time.Clock()
     warmup_frames = 0
@@ -321,11 +323,14 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
                 mx, my = event.pos
                 fx = mx - feed_x
                 fy = my - feed_y
-                if 0 <= fx < FEED_W and 0 <= fy < FEED_H and frame is not None:
-                    x1 = max(0, fx - PATCH)
-                    y1 = max(0, fy - PATCH)
-                    x2 = min(FEED_W, fx + PATCH)
-                    y2 = min(FEED_H, fy + PATCH)
+                if 0 <= fx < DISP_W and 0 <= fy < DISP_H and frame is not None:
+                    # Scale click from display coords back to original camera resolution
+                    cx = int(fx * FEED_W / DISP_W)
+                    cy = int(fy * FEED_H / DISP_H)
+                    x1 = max(0, cx - PATCH)
+                    y1 = max(0, cy - PATCH)
+                    x2 = min(FEED_W, cx + PATCH)
+                    y2 = min(FEED_H, cy + PATCH)
                     patch = frame[y1:y2, x1:x2]
                     if patch.size > 0:
                         sampled_lower, sampled_upper = _compute_hsv_range(patch)
@@ -351,33 +356,36 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
 
             title_text = strings.get("color_train_title", "Colour Training")
             title_surf = font_large.render(title_text, True, (255, 255, 255))
-            screen.blit(title_surf, (WINDOW_W // 2 - title_surf.get_width() // 2, 20))
+            screen.blit(title_surf, (WINDOW_W // 2 - title_surf.get_width() // 2, 10))
 
             if frame is not None:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                feed_surf = pygame.surfarray.make_surface(frame_rgb.swapaxes(0, 1))
+                frame_small = cv2.resize(frame_rgb, (DISP_W, DISP_H))
+                feed_surf = pygame.surfarray.make_surface(frame_small.swapaxes(0, 1))
                 screen.blit(feed_surf, (feed_x, feed_y))
             else:
-                pygame.draw.rect(screen, (50, 50, 50), (feed_x, feed_y, FEED_W, FEED_H))
+                pygame.draw.rect(screen, (50, 50, 50), (feed_x, feed_y, DISP_W, DISP_H))
                 no_cam = font_small.render("No camera", True, (200, 100, 100))
                 screen.blit(no_cam, (feed_x + 10, feed_y + 10))
 
+            # ── Info panel below the feed ──────────────────────────────────
+            panel_y = feed_y + DISP_H + 8
             instr = strings.get("color_train_instructions", "Place object on floor. Click on it.")
             for i, line in enumerate(instr.split("\n")):
                 surf = font_small.render(line, True, (200, 200, 200))
-                screen.blit(surf, (20, feed_y + FEED_H + 10 + i * 28))
+                screen.blit(surf, (feed_x, panel_y + i * 28))
 
             if sampled_color_rgb is not None:
-                # Color swatch preview
-                swatch_rect = pygame.Rect(WINDOW_W - 120, feed_y + FEED_H + 10, 80, 40)
+                # Color swatch preview (right side of panel)
+                swatch_rect = pygame.Rect(feed_x + DISP_W - 80, panel_y, 80, 40)
                 pygame.draw.rect(screen, sampled_color_rgb, swatch_rect, border_radius=6)
                 pygame.draw.rect(screen, (200, 200, 200), swatch_rect, 2, border_radius=6)
                 done_text = strings.get("color_train_confirm", "Press ENTER to confirm")
                 done_surf = font_small.render(done_text, True, (100, 255, 100))
-                screen.blit(done_surf, (20, feed_y + FEED_H + 70))
+                screen.blit(done_surf, (feed_x, panel_y + 44))
                 retry_text = strings.get("color_train_retry", "Click again to re-sample")
                 retry_surf = font_small.render(retry_text, True, (180, 180, 180))
-                screen.blit(retry_surf, (20, feed_y + FEED_H + 98))
+                screen.blit(retry_surf, (feed_x, panel_y + 72))
 
             if not ready:
                 wait_surf = font_small.render("Camera warming up...", True, (150, 150, 150))
