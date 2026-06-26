@@ -18,9 +18,14 @@ LANG_CLIPS = [
     "op_plus",          # "plus"
     "op_minus",         # "miinus" / "minus"
     "seq_intro",        # "Hyppää järjestyksessä:" / "Jump in order:"
+    # Tiny-mode corner symbols
+    "prompt_symbol",    # "Hyppää…" / "Jump to the…"
+    "sym_star",         # "tähteen" / "star"
+    "sym_ball",         # "palloon" / "ball"
+    "sym_diamond",      # "timanttiin" / "diamond"
+    "sym_heart",        # "sydämeen" / "heart"
     # Reactions
     "success",
-    "fail",
     "timeout",
     "welcome",
     "streak",

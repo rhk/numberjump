@@ -206,8 +206,8 @@ class Game:
 
         # Fire audio for jump mode (math_add/sub fire their own above)
         if self.tier == "tiny":
-            # TODO: record sym_star/sym_ball/sym_diamond/sym_heart clips per language
-            self.audio.play_number(r.target)
+            # Tiny mode shows a corner symbol (★ ● ◆ ♥) — speak the symbol, not the number
+            self.audio.prompt_symbol(r.target)
         else:
             self.audio.prompt_jump(r.target)
         return r

@@ -5,6 +5,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Tiny-mode corner zones → spoken symbol clip (matches TINY_SYMBOLS in game.py:
+# 1=★ star, 3=● ball, 7=◆ diamond, 9=♥ heart).
+SYM_CLIPS = {1: "sym_star", 3: "sym_ball", 7: "sym_diamond", 9: "sym_heart"}
+
 _mixer_initialized = False
 
 
@@ -90,6 +94,17 @@ class AudioPlayer:
     def prompt_jump(self, zone: int) -> None:
         """'Hyppää numeroon X' — async so game loop doesn't block."""
         self.play_sequence_async("prompt_jump", f"num_{zone}")
+
+    def prompt_symbol(self, zone: int) -> None:
+        """'Hyppää tähteen/palloon/...' for Tiny-mode corner symbols — async.
+
+        Falls back to the spoken number for any zone without a symbol clip.
+        """
+        sym_clip = SYM_CLIPS.get(zone)
+        if sym_clip is None:
+            self.prompt_jump(zone)
+            return
+        self.play_sequence_async("prompt_symbol", sym_clip)
 
     def prompt_math(self, a: int, op: str, b: int) -> None:
         """'Paljonko on A plus/minus B' — async."""
