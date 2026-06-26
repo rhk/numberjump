@@ -10,7 +10,7 @@ import numpy as np
 import pygame
 
 from audio import AudioPlayer
-from calibration import run_calibration
+from calibration import run_calibration, run_color_training
 from tracker import Tracker
 
 logger = logging.getLogger(__name__)
@@ -316,6 +316,12 @@ class Game:
                                 self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
                             except Exception:
                                 pass  # user cancelled or calibration failed — keep old transform
+                            try:
+                                color = run_color_training(screen, self.strings)
+                                self.tracker.hsv_lower = np.array(color["hsv_lower"], dtype=np.uint8)
+                                self.tracker.hsv_upper = np.array(color["hsv_upper"], dtype=np.uint8)
+                            except Exception:
+                                pass  # user cancelled or training failed — keep old colour
                             self.cam_type, self.cam = _open_camera()
 
             frame = _grab_frame(self.cam_type, self.cam) if self.cam_type else None
