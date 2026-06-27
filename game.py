@@ -99,7 +99,8 @@ class Game:
         self.state_entered: float = time.time()
         self.last_zone: Optional[int] = None
         self.last_debug_frame = None
-        self.show_mask = False  # toggled with M — show the live HSV detection mask
+        # M cycles the detection view: 0=off, 1=magenta overlay, 2=pure mask.
+        self.mask_mode = 0
 
         # Resolve a Unicode-capable font path (DejaVu Sans covers ★ ● ◆ ♥)
         _font_path = (
@@ -313,8 +314,8 @@ class Game:
                         if self.state == State.WAITING:
                             self._start_round()
                     elif event.key == pygame.K_m:
-                        # Toggle the live HSV detection mask (webcam tuning aid).
-                        self.show_mask = not self.show_mask
+                        # Cycle the detection view: off -> overlay -> pure mask.
+                        self.mask_mode = (self.mask_mode + 1) % 3
                     elif event.key == pygame.K_r:
                         if self.state == State.WAITING:
                             release_camera(self.cam_type, self.cam)
@@ -342,8 +343,10 @@ class Game:
                 debug_frame = self.tracker.get_debug_frame(
                     frame, self.transform_matrix, zone, centroid, zone_labels=cv2_labels
                 )
-                if self.show_mask:
+                if self.mask_mode == 1:
                     debug_frame = self._overlay_mask(frame, debug_frame)
+                elif self.mask_mode == 2:
+                    debug_frame = self._mask_view(frame)
                 self.last_zone = zone
                 self.last_debug_frame = debug_frame
 
@@ -366,6 +369,20 @@ class Game:
         # Paint masked pixels bright magenta (BGR) so they stand out on any feed.
         overlay[mask > 0] = (255, 0, 255)
         return cv2.addWeighted(overlay, 0.5, debug_frame, 0.5, 0)
+
+    def _mask_view(self, frame: np.ndarray) -> np.ndarray:
+        """Pure white-on-black detection mask with a faint grid (toggled with M).
+
+        Makes "is anything detected at all" unmistakable — only the colour the
+        filter accepts shows as white.
+        """
+        mask = self.tracker.get_mask(frame, self.transform_matrix)
+        view = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        h, w = view.shape[:2]
+        for i in range(1, 3):
+            cv2.line(view, (w * i // 3, 0), (w * i // 3, h), (0, 160, 0), 1)
+            cv2.line(view, (0, h * i // 3), (w, h * i // 3), (0, 160, 0), 1)
+        return view
 
     # ------------------------------------------------------------------ #
     # Drawing                                                              #
@@ -572,3 +589,11 @@ class Game:
             zone_label = TINY_SYMBOLS.get(zone, str(zone)) if self.tier == "tiny" else str(zone)
             zt = self.font_small.render(f"{self._s('detecting')} {zone_label}", True, (74, 255, 160))
             screen.blit(zt, (WINDOW_W // 2 - zt.get_width() // 2, WINDOW_H - 28))
+
+        # ── Active HSV range readout (mask view) ──────────────────────
+        if self.mask_mode != 0:
+            lo, hi = self.tracker.hsv_lower, self.tracker.hsv_upper
+            mode_name = "overlay" if self.mask_mode == 1 else "mask"
+            txt = (f"[{mode_name}]  HSV  {lo[0]},{lo[1]},{lo[2]} - {hi[0]},{hi[1]},{hi[2]}")
+            surf = self.font_small.render(txt, True, (170, 200, 230))
+            screen.blit(surf, (WINDOW_W // 2 - surf.get_width() // 2, WINDOW_H - 52))
