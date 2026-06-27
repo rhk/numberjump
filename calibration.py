@@ -8,44 +8,12 @@ import cv2
 import numpy as np
 import pygame
 
+from camera import FEED_W, FEED_H, open_camera, grab_frame, release_camera
+
 logger = logging.getLogger(__name__)
 
 CALIBRATION_FILE = Path(__file__).parent / "calibration.json"
 WINDOW_W, WINDOW_H = 800, 600
-FEED_W, FEED_H = 640, 480
-
-
-def _open_camera():
-    """Try picamera2 first, fall back to cv2.VideoCapture."""
-    try:
-        from picamera2 import Picamera2
-        cam = Picamera2()
-        cam.configure(cam.create_preview_configuration(main={"size": (FEED_W, FEED_H), "format": "BGR888"}))
-        cam.start()
-        return ("picamera2", cam)
-    except Exception:
-        cap = cv2.VideoCapture(0)
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FEED_W)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FEED_H)
-            return ("cv2", cap)
-        return (None, None)
-
-
-def _grab_frame(cam_type, cam):
-    if cam_type == "picamera2":
-        return cam.capture_array()
-    elif cam_type == "cv2":
-        ret, frame = cam.read()
-        return frame if ret else None
-    return None
-
-
-def _release_camera(cam_type, cam):
-    if cam_type == "picamera2":
-        cam.stop()
-    elif cam_type == "cv2":
-        cam.release()
 
 
 def load_calibration() -> Optional[dict]:
@@ -90,7 +58,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
     Show live camera feed. User clicks 4 corners (TL, TR, BR, BL).
     Returns calibration dict with 'corners' and 'transform'.
     """
-    cam_type, cam = _open_camera()
+    cam_type, cam = open_camera()
 
     _font_path = (
         pygame.font.match_font("dejavusans")
@@ -152,7 +120,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
 
         frame = None
         if cam_type is not None:
-            frame = _grab_frame(cam_type, cam)
+            frame = grab_frame(cam_type, cam)
 
         draw_gradient()
 
@@ -241,7 +209,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
         clock.tick(30)
 
     if cam_type is not None:
-        _release_camera(cam_type, cam)
+        release_camera(cam_type, cam)
 
     # Compute perspective transform
     src = np.float32(corners)
@@ -257,33 +225,75 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
     return calib
 
 
-def _compute_hsv_range(patch_bgr: np.ndarray) -> tuple[tuple, tuple]:
-    """Compute HSV lower/upper bounds from a BGR image patch."""
+def _clamp_int(val: float, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(round(val))))
+
+
+def _analyze_patch(patch_bgr: np.ndarray) -> tuple[tuple, tuple, dict]:
+    """Compute a glare-robust HSV range from a BGR patch.
+
+    Returns (lower, upper, info) where info has 'median_hsv' (the sampled colour)
+    and 'glare_fallback' (True if the patch was mostly glare/shadow and we had to
+    fall back to all pixels). Specular highlights from bright/solar light turn a
+    coloured object near-white; sampling those poisons the range (a washed-out
+    pixel has a meaningless hue and a near-255 value). We therefore reject glare
+    and shadow pixels first, centre the hue on the median, and keep the
+    saturation/value *lower* bounds generous-but-capped while pinning the upper
+    bounds to 255 — a saturated object should match all the way up, exactly like
+    the orange/green presets in tracker.py.
+    """
     patch_hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
-    h = patch_hsv[:, :, 0].flatten().astype(float)
-    s = patch_hsv[:, :, 1].flatten().astype(float)
-    v = patch_hsv[:, :, 2].flatten().astype(float)
+    h = patch_hsv[:, :, 0].astype(float).flatten()
+    s = patch_hsv[:, :, 1].astype(float).flatten()
+    v = patch_hsv[:, :, 2].astype(float).flatten()
 
-    # Handle hue wrap-around (e.g. orange near 0/179 boundary)
-    if h.std() > 25:
-        h_shifted = (h + 90) % 180
-        mean_h = (h_shifted.mean() - 90) % 180
-        std_h = h_shifted.std()
+    # Keep only well-saturated, mid-brightness pixels: drops near-white glare
+    # (low S / very high V) and deep shadow (very low V).
+    valid = (s >= 50) & (v >= 40) & (v <= 230)
+    glare_fallback = False
+    if valid.sum() < max(1, int(0.2 * valid.size)):
+        # The whole click was glare/shadow — use everything so we still produce
+        # *a* range, but the caps below stop it being pathological.
+        glare_fallback = True
+        valid = np.ones_like(valid, dtype=bool)
+
+    hv, sv, vv = h[valid], s[valid], v[valid]
+
+    # Hue: median centre (robust to outliers), with wrap-around handling for
+    # colours sitting near the 0/179 boundary (e.g. orange/red).
+    if hv.std() > 25:
+        shifted = (hv + 90) % 180
+        med_h = (np.median(shifted) - 90) % 180
+        std_h = shifted.std()
     else:
-        mean_h = h.mean()
-        std_h = h.std()
+        med_h = float(np.median(hv))
+        std_h = hv.std()
 
-    def clamp(val, lo, hi):
-        return max(lo, min(hi, int(round(val))))
+    h_margin = max(2.5 * std_h, 8.0)
+    h_lo = _clamp_int(med_h - h_margin, 0, 179)
+    h_hi = _clamp_int(med_h + h_margin, 0, 179)
 
-    h_lo = clamp(mean_h - 2 * std_h, 0, 179)
-    h_hi = clamp(mean_h + 2 * std_h, 0, 179)
-    s_lo = max(60, clamp(s.mean() - 2 * s.std(), 0, 255))
-    s_hi = clamp(s.mean() + 2 * s.std(), 0, 255)
-    v_lo = max(60, clamp(v.mean() - 2 * v.std(), 0, 255))
-    v_hi = clamp(v.mean() + 2 * v.std(), 0, 255)
+    # Lower bounds from a low percentile (ignores the brightest few pixels) minus
+    # a margin, then capped so glare can never push the floor up to ~249 again.
+    s_lo = _clamp_int(np.percentile(sv, 10) - 30, 40, 130)
+    v_lo = _clamp_int(np.percentile(vv, 10) - 40, 40, 140)
+    s_hi, v_hi = 255, 255
 
-    return (h_lo, s_lo, v_lo), (h_hi, s_hi, v_hi)
+    info = {
+        "median_hsv": (
+            int(round(med_h)),
+            int(round(np.median(sv))),
+            int(round(np.median(vv))),
+        ),
+        "glare_fallback": glare_fallback,
+    }
+    return (h_lo, s_lo, v_lo), (h_hi, s_hi, v_hi), info
+
+
+def _compute_hsv_range(patch_bgr: np.ndarray) -> tuple[tuple, tuple]:
+    """Glare-robust HSV lower/upper bounds from a BGR image patch."""
+    lower, upper, _ = _analyze_patch(patch_bgr)
+    return lower, upper
 
 
 def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
@@ -291,16 +301,19 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
     Show live camera feed. User clicks on the trackable object to sample its color.
     Returns dict with 'hsv_lower' and 'hsv_upper'.
     """
-    cam_type, cam = _open_camera()
+    cam_type, cam = open_camera()
 
     font_large = pygame.font.SysFont(None, 40)
     font_small = pygame.font.SysFont(None, 28)
+    font_tiny  = pygame.font.SysFont(None, 22)
 
     PATCH = 12  # half-size of sampling patch (in original camera coords)
 
     sampled_lower = None
     sampled_upper = None
     sampled_color_rgb = None  # preview color for display
+    sampled_median = None     # sampled HSV (post glare-rejection) for readout
+    sampled_glare = False     # True if the click was mostly glare/shadow
 
     # Display feed scaled down to fit: title(~50) + feed(420) + panel(110) fits in 600.
     DISP_W, DISP_H = 560, 420
@@ -333,10 +346,14 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
                     y2 = min(FEED_H, cy + PATCH)
                     patch = frame[y1:y2, x1:x2]
                     if patch.size > 0:
-                        sampled_lower, sampled_upper = _compute_hsv_range(patch)
-                        # Convert mean BGR of patch to RGB for preview swatch
-                        mean_bgr = patch.mean(axis=(0, 1))
-                        sampled_color_rgb = (int(mean_bgr[2]), int(mean_bgr[1]), int(mean_bgr[0]))
+                        sampled_lower, sampled_upper, info = _analyze_patch(patch)
+                        sampled_median = info["median_hsv"]
+                        sampled_glare = info["glare_fallback"]
+                        # Swatch from the (glare-rejected) median HSV so it shows
+                        # the real object colour, not a glare-washed average.
+                        hsv_px = np.uint8([[list(sampled_median)]])
+                        bgr_px = cv2.cvtColor(hsv_px, cv2.COLOR_HSV2BGR)[0][0]
+                        sampled_color_rgb = (int(bgr_px[2]), int(bgr_px[1]), int(bgr_px[0]))
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                 if sampled_lower is not None:
                     break
@@ -345,7 +362,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
             # Grab frame
             frame = None
             if cam_type is not None:
-                frame = _grab_frame(cam_type, cam)
+                frame = grab_frame(cam_type, cam)
 
             if not ready:
                 warmup_frames += 1
@@ -387,6 +404,21 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
                 retry_surf = font_small.render(retry_text, True, (180, 180, 180))
                 screen.blit(retry_surf, (feed_x, panel_y + 72))
 
+                # HSV readout (right side, under the swatch) so values are visible.
+                lo, hi, med = sampled_lower, sampled_upper, sampled_median
+                readout = [
+                    f"range  {lo[0]},{lo[1]},{lo[2]}  -  {hi[0]},{hi[1]},{hi[2]}",
+                    f"sampled HSV  {med[0]},{med[1]},{med[2]}",
+                ]
+                for i, line in enumerate(readout):
+                    surf = font_tiny.render(line, True, (170, 200, 230))
+                    screen.blit(surf, (feed_x + DISP_W - surf.get_width(), panel_y + 44 + i * 22))
+                if sampled_glare:
+                    warn = font_tiny.render(
+                        "mostly glare - click a matte (non-shiny) spot", True, (255, 170, 70)
+                    )
+                    screen.blit(warn, (feed_x + DISP_W - warn.get_width(), panel_y + 88))
+
             if not ready:
                 wait_surf = font_small.render("Camera warming up...", True, (150, 150, 150))
                 screen.blit(wait_surf, (feed_x + 10, feed_y + 10))
@@ -399,7 +431,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
         break
 
     if cam_type is not None:
-        _release_camera(cam_type, cam)
+        release_camera(cam_type, cam)
 
     save_color(sampled_lower, sampled_upper)
     return {"hsv_lower": list(sampled_lower), "hsv_upper": list(sampled_upper)}

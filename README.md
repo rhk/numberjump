@@ -177,6 +177,7 @@ The window scales to fill your screen automatically. It is not exclusive fullscr
 |---|---|
 | ENTER | Start a round (from waiting screen); confirm calibration / colour sample |
 | R | Recalibrate the mat without restarting |
+| M | Cycle the detection view: off → colour overlay → pure mask (diagnose tracking) |
 | ESC | Quit |
 | Mouse click | Select menu buttons; click mat corners during calibration; click object during colour training |
 
@@ -232,6 +233,40 @@ The tracker works with any brightly coloured object — sock, ping pong ball, gl
 | Old USB webcam | Usable | Lower resolution and colour fidelity; needs wider HSV tolerances |
 
 Key factors in order of importance: **frame rate** (≥30 fps), **exposure lock**, **latency**.
+
+### Tuning detection on a laptop webcam
+
+The game auto-applies USB-webcam tuning when it falls back to a `cv2` capture:
+white balance and autofocus are locked (so the sock's colour and sharpness stay
+put), exposure is locked best-effort (reverting to auto if that would darken the
+image), and the capture buffer is capped to one frame to cut latency. These are
+all best-effort — unsupported settings are skipped and logged. The startup log
+reports which camera backend opened and whether exposure locked.
+
+To diagnose detection, press **M** in-game to cycle the detection view: off →
+colour overlay → pure mask. In the overlay the tracked object is tinted magenta;
+in the pure mask it shows as a solid white blob on black. Either way it should be
+a clean blob with little background speckle. The active HSV range is printed
+on-screen so you can see exactly what the filter accepts.
+
+### Detection looks wrong?
+
+Most problems are **lighting**, not the object colour:
+
+- **Sun / changing light drifts the calibration.** White balance and exposure are
+  locked at training time, so when daylight shifts (clouds, time of day) a saved
+  colour goes stale — just re-run `--retrain-color` under the light you'll play
+  in. Diffusing a bright window (a sheer curtain) keeps it consistent.
+- **Glare on shiny socks / reflective mats reads as white.** A specular hotspot
+  blows pixels to near-white, which has no real colour — sampling one produces a
+  useless range (the trainer warns you when a click is *mostly glare*). Prefer a
+  **matte cotton** sock over satin/nylon, keep a direct sun patch off the play
+  area, and when training **click the sock's body, not a shiny highlight**. A
+  white/light-gray mat is fine for colour (it won't clash) but is reflective, so
+  watch for hotspots.
+- **Only one colour is tracked at a time** — the colour you trained. A second
+  coloured object on the floor (e.g. an orange paper) won't show in the mask, and
+  you should never track a colour that also appears on a floor square.
 
 ---
 
