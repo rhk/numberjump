@@ -8,44 +8,12 @@ import cv2
 import numpy as np
 import pygame
 
+from camera import FEED_W, FEED_H, open_camera, grab_frame, release_camera
+
 logger = logging.getLogger(__name__)
 
 CALIBRATION_FILE = Path(__file__).parent / "calibration.json"
 WINDOW_W, WINDOW_H = 800, 600
-FEED_W, FEED_H = 640, 480
-
-
-def _open_camera():
-    """Try picamera2 first, fall back to cv2.VideoCapture."""
-    try:
-        from picamera2 import Picamera2
-        cam = Picamera2()
-        cam.configure(cam.create_preview_configuration(main={"size": (FEED_W, FEED_H), "format": "BGR888"}))
-        cam.start()
-        return ("picamera2", cam)
-    except Exception:
-        cap = cv2.VideoCapture(0)
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FEED_W)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FEED_H)
-            return ("cv2", cap)
-        return (None, None)
-
-
-def _grab_frame(cam_type, cam):
-    if cam_type == "picamera2":
-        return cam.capture_array()
-    elif cam_type == "cv2":
-        ret, frame = cam.read()
-        return frame if ret else None
-    return None
-
-
-def _release_camera(cam_type, cam):
-    if cam_type == "picamera2":
-        cam.stop()
-    elif cam_type == "cv2":
-        cam.release()
 
 
 def load_calibration() -> Optional[dict]:
@@ -90,7 +58,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
     Show live camera feed. User clicks 4 corners (TL, TR, BR, BL).
     Returns calibration dict with 'corners' and 'transform'.
     """
-    cam_type, cam = _open_camera()
+    cam_type, cam = open_camera()
 
     _font_path = (
         pygame.font.match_font("dejavusans")
@@ -152,7 +120,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
 
         frame = None
         if cam_type is not None:
-            frame = _grab_frame(cam_type, cam)
+            frame = grab_frame(cam_type, cam)
 
         draw_gradient()
 
@@ -241,7 +209,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
         clock.tick(30)
 
     if cam_type is not None:
-        _release_camera(cam_type, cam)
+        release_camera(cam_type, cam)
 
     # Compute perspective transform
     src = np.float32(corners)
@@ -276,8 +244,12 @@ def _compute_hsv_range(patch_bgr: np.ndarray) -> tuple[tuple, tuple]:
     def clamp(val, lo, hi):
         return max(lo, min(hi, int(round(val))))
 
-    h_lo = clamp(mean_h - 2 * std_h, 0, 179)
-    h_hi = clamp(mean_h + 2 * std_h, 0, 179)
+    # Webcam colour fidelity is lower than a CSI cam's, so give the hue band a
+    # bit more slack (2.5 sigma) plus a small minimum margin — a very uniform
+    # patch still gets a few degrees of tolerance instead of a razor-thin range.
+    h_margin = max(2.5 * std_h, 6.0)
+    h_lo = clamp(mean_h - h_margin, 0, 179)
+    h_hi = clamp(mean_h + h_margin, 0, 179)
     s_lo = max(60, clamp(s.mean() - 2 * s.std(), 0, 255))
     s_hi = clamp(s.mean() + 2 * s.std(), 0, 255)
     v_lo = max(60, clamp(v.mean() - 2 * v.std(), 0, 255))
@@ -291,7 +263,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
     Show live camera feed. User clicks on the trackable object to sample its color.
     Returns dict with 'hsv_lower' and 'hsv_upper'.
     """
-    cam_type, cam = _open_camera()
+    cam_type, cam = open_camera()
 
     font_large = pygame.font.SysFont(None, 40)
     font_small = pygame.font.SysFont(None, 28)
@@ -345,7 +317,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
             # Grab frame
             frame = None
             if cam_type is not None:
-                frame = _grab_frame(cam_type, cam)
+                frame = grab_frame(cam_type, cam)
 
             if not ready:
                 warmup_frames += 1
@@ -399,7 +371,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
         break
 
     if cam_type is not None:
-        _release_camera(cam_type, cam)
+        release_camera(cam_type, cam)
 
     save_color(sampled_lower, sampled_upper)
     return {"hsv_lower": list(sampled_lower), "hsv_upper": list(sampled_upper)}

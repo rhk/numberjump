@@ -11,6 +11,7 @@ import pygame
 
 from audio import AudioPlayer
 from calibration import run_calibration, run_color_training
+from camera import open_camera, grab_frame, release_camera
 from tracker import Tracker
 
 logger = logging.getLogger(__name__)
@@ -60,40 +61,6 @@ class Round:
     seq_index: int = 0          # which target in sequence we're on
 
 
-def _open_camera():
-    try:
-        from picamera2 import Picamera2
-        cam = Picamera2()
-        cam.configure(cam.create_preview_configuration(
-            main={"size": (640, 480), "format": "BGR888"}
-        ))
-        cam.start()
-        return "picamera2", cam
-    except Exception:
-        cap = cv2.VideoCapture(0)
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            return "cv2", cap
-        return None, None
-
-
-def _grab_frame(cam_type, cam):
-    if cam_type == "picamera2":
-        return cam.capture_array()
-    elif cam_type == "cv2":
-        ret, frame = cam.read()
-        return frame if ret else None
-    return None
-
-
-def _release_camera(cam_type, cam):
-    if cam_type == "picamera2":
-        cam.stop()
-    elif cam_type == "cv2":
-        cam.release()
-
-
 class Game:
     def __init__(
         self,
@@ -132,6 +99,7 @@ class Game:
         self.state_entered: float = time.time()
         self.last_zone: Optional[int] = None
         self.last_debug_frame = None
+        self.show_mask = False  # toggled with M — show the live HSV detection mask
 
         # Resolve a Unicode-capable font path (DejaVu Sans covers ★ ● ◆ ♥)
         _font_path = (
@@ -148,13 +116,13 @@ class Game:
         self.font_small  = _f(24)
         self.font_symbol = _f(200)
 
-        self.cam_type, self.cam = _open_camera()
+        self.cam_type, self.cam = open_camera()
         if self.cam_type is None:
             logger.warning("No camera available")
 
     def cleanup(self):
         if self.cam_type is not None:
-            _release_camera(self.cam_type, self.cam)
+            release_camera(self.cam_type, self.cam)
 
     def _s(self, key: str) -> str:
         return self.strings.get(key, key)
@@ -344,9 +312,12 @@ class Game:
                     elif event.key == pygame.K_RETURN:
                         if self.state == State.WAITING:
                             self._start_round()
+                    elif event.key == pygame.K_m:
+                        # Toggle the live HSV detection mask (webcam tuning aid).
+                        self.show_mask = not self.show_mask
                     elif event.key == pygame.K_r:
                         if self.state == State.WAITING:
-                            _release_camera(self.cam_type, self.cam)
+                            release_camera(self.cam_type, self.cam)
                             try:
                                 calib = run_calibration(screen, self.strings)
                                 self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
@@ -358,9 +329,9 @@ class Game:
                                 self.tracker.hsv_upper = np.array(color["hsv_upper"], dtype=np.uint8)
                             except Exception:
                                 pass  # user cancelled or training failed — keep old colour
-                            self.cam_type, self.cam = _open_camera()
+                            self.cam_type, self.cam = open_camera()
 
-            frame = _grab_frame(self.cam_type, self.cam) if self.cam_type else None
+            frame = grab_frame(self.cam_type, self.cam) if self.cam_type else None
             zone = None
             debug_frame = None
             if frame is not None:
@@ -371,6 +342,8 @@ class Game:
                 debug_frame = self.tracker.get_debug_frame(
                     frame, self.transform_matrix, zone, centroid, zone_labels=cv2_labels
                 )
+                if self.show_mask:
+                    debug_frame = self._overlay_mask(frame, debug_frame)
                 self.last_zone = zone
                 self.last_debug_frame = debug_frame
 
@@ -381,6 +354,18 @@ class Game:
 
         self.cleanup()
         return result
+
+    def _overlay_mask(self, frame: np.ndarray, debug_frame: np.ndarray) -> np.ndarray:
+        """Tint the detected HSV mask onto the debug feed (toggled with M).
+
+        Shows exactly what the colour filter catches so detection can be
+        diagnosed/tuned on a webcam. The grid + centroid stay visible underneath.
+        """
+        mask = self.tracker.get_mask(frame, self.transform_matrix)
+        overlay = debug_frame.copy()
+        # Paint masked pixels bright magenta (BGR) so they stand out on any feed.
+        overlay[mask > 0] = (255, 0, 255)
+        return cv2.addWeighted(overlay, 0.5, debug_frame, 0.5, 0)
 
     # ------------------------------------------------------------------ #
     # Drawing                                                              #
@@ -479,7 +464,7 @@ class Game:
 
         hint_bottom = card_bottom
         if self.state == State.WAITING:
-            hint = self.font_small.render("R = recalibrate    ESC = menu", True, (90, 90, 130))
+            hint = self.font_small.render("R = recalibrate    M = mask    ESC = menu", True, (90, 90, 130))
             hint_y = card_bottom + 4
             screen.blit(hint, (WINDOW_W // 2 - hint.get_width() // 2, hint_y))
             hint_bottom = hint_y + hint.get_height()

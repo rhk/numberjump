@@ -31,6 +31,28 @@ class Tracker:
         self.hsv_lower = np.array(hsv_lower, dtype=np.uint8)
         self.hsv_upper = np.array(hsv_upper, dtype=np.uint8)
 
+    def _warp(self, frame: np.ndarray, transform_matrix: Optional[np.ndarray]) -> np.ndarray:
+        if transform_matrix is not None:
+            return cv2.warpPerspective(frame, transform_matrix, WARPED_SIZE)
+        return cv2.resize(frame, WARPED_SIZE)
+
+    def _roi_start(self, h: int, transform_matrix: Optional[np.ndarray]) -> int:
+        # When a perspective warp is active, the warped area is mat-only — no torso present.
+        # Without a warp (raw frame), skip the top third to avoid detecting clothing.
+        return 0 if transform_matrix is not None else h // 3
+
+    def _threshold(self, hsv_roi: np.ndarray) -> np.ndarray:
+        """HSV threshold + morphological cleanup. Shared by find_zone and get_mask
+        so the detected blob and the debug mask can never diverge."""
+        mask = cv2.inRange(hsv_roi, self.hsv_lower, self.hsv_upper)
+        # Open with a small kernel to drop speckle, then close with a larger one
+        # so a motion-blurred / partially-occluded blob stays a single contour.
+        open_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, close_kernel)
+        return mask
+
     def find_zone(
         self, frame: np.ndarray, transform_matrix: Optional[np.ndarray]
     ) -> tuple[Optional[int], Optional[tuple]]:
@@ -38,25 +60,14 @@ class Tracker:
         Apply perspective transform, threshold HSV, find foot blob.
         Returns (zone_number 1-9 or None, centroid (x,y) in warped space or None).
         """
-        if transform_matrix is not None:
-            warped = cv2.warpPerspective(frame, transform_matrix, WARPED_SIZE)
-        else:
-            warped = cv2.resize(frame, WARPED_SIZE)
-
+        warped = self._warp(frame, transform_matrix)
         hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
 
         h, w = hsv.shape[:2]
-        # When a perspective warp is active, the warped area is mat-only — no torso present.
-        # Without a warp (raw frame), skip the top third to avoid detecting green clothing.
-        roi_start = 0 if transform_matrix is not None else h // 3
+        roi_start = self._roi_start(h, transform_matrix)
         hsv_roi = hsv[roi_start:, :]
 
-        mask = cv2.inRange(hsv_roi, self.hsv_lower, self.hsv_upper)
-
-        # Morphological cleanup
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = self._threshold(hsv_roi)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
@@ -81,6 +92,25 @@ class Tracker:
         col = min(int(cx / w * 3), 2)
         row = min(int(cy / h * 3), 2)
         return row * 3 + col + 1
+
+    def get_mask(
+        self, frame: np.ndarray, transform_matrix: Optional[np.ndarray]
+    ) -> np.ndarray:
+        """Return the post-morphology binary mask in warped space (WARPED_SIZE).
+
+        Uses the exact same threshold pipeline as find_zone, so the debug view
+        shows precisely what detection sees. Pixels outside the ROI (the skipped
+        top region when no warp is active) are left black.
+        """
+        warped = self._warp(frame, transform_matrix)
+        hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
+        h, w = hsv.shape[:2]
+        roi_start = self._roi_start(h, transform_matrix)
+        roi_mask = self._threshold(hsv[roi_start:, :])
+
+        full = np.zeros((h, w), dtype=np.uint8)
+        full[roi_start:, :] = roi_mask
+        return full
 
     def get_debug_frame(
         self,

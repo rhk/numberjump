@@ -177,6 +177,7 @@ The window scales to fill your screen automatically. It is not exclusive fullscr
 |---|---|
 | ENTER | Start a round (from waiting screen); confirm calibration / colour sample |
 | R | Recalibrate the mat without restarting |
+| M | Toggle the live detection mask (see what the colour filter catches) |
 | ESC | Quit |
 | Mouse click | Select menu buttons; click mat corners during calibration; click object during colour training |
 
@@ -232,6 +233,21 @@ The tracker works with any brightly coloured object — sock, ping pong ball, gl
 | Old USB webcam | Usable | Lower resolution and colour fidelity; needs wider HSV tolerances |
 
 Key factors in order of importance: **frame rate** (≥30 fps), **exposure lock**, **latency**.
+
+### Tuning detection on a laptop webcam
+
+The game auto-applies USB-webcam tuning when it falls back to a `cv2` capture:
+white balance and autofocus are locked (so the sock's colour and sharpness stay
+put), exposure is locked best-effort (reverting to auto if that would darken the
+image), and the capture buffer is capped to one frame to cut latency. These are
+all best-effort — unsupported settings are skipped and logged. The startup log
+reports which camera backend opened and whether exposure locked.
+
+To diagnose detection, press **M** in-game to overlay the live HSV mask on the
+feed: the tracked object should light up as a solid blob with little background
+speckle. If it doesn't, re-run colour training (`--retrain-color`) **under the
+lighting you'll actually play in** — webcams shift colour noticeably between
+lighting setups.
 
 ---
 
