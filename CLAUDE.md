@@ -50,9 +50,10 @@ The codebase is a thin pygame application with a linear startup sequence followe
 | File | Role |
 |---|---|
 | `game.py` | State machine (WAITING → DETECTING / SEQ_DETECTING → SUCCESS / FAIL), renders pygame UI, drives audio and tracker each frame |
-| `tracker.py` | Reads a camera frame, applies perspective transform, HSV-thresholds the sock color, maps centroid to zone 1–9 |
-| `calibration.py` | Interactive corner-click UI → saves perspective matrix to `calibration.json`; also hosts `run_color_training()` (click-to-sample HSV) and `save_color()` (merges HSV fields into the same JSON) |
-| `audio.py` | Assembles and plays composable audio sequences from atomic `.wav` clips; supports sync and async playback |
+| `camera.py` | Single source of camera access (`open_camera` / `grab_frame` / `release_camera`) shared by calibration and gameplay, plus all USB-webcam capture tuning |
+| `tracker.py` | Applies perspective transform to a frame, HSV-thresholds the sock color, maps centroid to zone 1–9; `get_mask()` returns the same binary mask for the M-key debug overlay |
+| `calibration.py` | Interactive corner-click UI → saves perspective matrix to `calibration.json`; also hosts `run_color_training()` (glare-robust click-to-sample HSV) and `save_color()` (merges HSV fields into the same JSON) |
+| `audio.py` | Assembles and plays composable audio sequences from atomic `.wav` clips; supports sync and async playback, reports prompt length, and detects whether real (non-silent) audio exists |
 | `lang.py` | Loads `lang/fi.json` or `lang/en.json` for UI strings |
 
 ### Game state machine (`game.py`)
@@ -64,7 +65,11 @@ DETECTING / SEQ_DETECTING  →  (correct zone)  →  SUCCESS
 SUCCESS / FAIL  →  (short pause)  →  WAITING
 ```
 
-Each round the game randomly picks a mode (jump, math_add, math_sub, or sequence) according to the active tier's allowed modes, generates the prompt, plays audio, then polls `tracker.get_zone(frame)` each frame until timeout or correct zone.
+Each round the game randomly picks a mode (jump, math_add, math_sub, or sequence) according to the active tier's allowed modes, generates the prompt, plays audio, then polls the tracker each frame until timeout or correct zone.
+
+Detection and the countdown timer are **gated on the prompt audio**: when real spoken audio exists, the round timer starts (and answers begin counting) only after the prompt finishes playing, so a player already standing on the answer can't score early. With only silent placeholder audio the round starts immediately and the task is shown on screen.
+
+`ESC` is context-sensitive: pressing it in-game returns to the level (tier) menu; pressing it in the menus quits the app. `R` on the waiting screen re-runs both corner calibration and colour training. `M` cycles the detection debug view (off → colour overlay → pure mask) using `tracker.get_mask()`.
 
 ### Tier configuration (inside `game.py`)
 
@@ -74,13 +79,17 @@ Each round the game randomly picks a mode (jump, math_add, math_sub, or sequence
 | junior | 1–9 | 6 s | jump, math_add, sequence |
 | challenge | 1–9 | 3 s | jump, math_add, math_sub, sequence |
 
-### Camera abstraction
+### Camera abstraction (`camera.py`)
 
-Both `calibration.py` and `game.py` open the camera the same way: try `picamera2` (aarch64 Raspberry Pi), fall back to `cv2.VideoCapture(0)`. Resolution is hardcoded at 640×480.
+All camera access lives in `camera.py` so colour training and gameplay use **identical** capture settings — otherwise a colour learned under one set of settings would drift from what the game sees. `open_camera()` tries `picamera2` (aarch64 Raspberry Pi) first, then falls back to `cv2.VideoCapture(0)`. Resolution is hardcoded at 640×480 (`FEED_W`/`FEED_H`).
+
+The `cv2` (USB-webcam) path applies best-effort tuning in `_tune_webcam()`: one-frame capture buffer (low latency), 30 fps, autofocus off, white balance locked to a fixed temperature, and exposure locked. White-balance and exposure locks are each verified after the fact (frame not magenta-cast / not black) and revert to auto if the driver ignored them. Unsupported properties are silently skipped. The `picamera2` path is left untouched.
 
 ### Audio system (`audio.py`)
 
 Clips are small atomic `.wav` files in `audio/fi/`, `audio/en/`, `audio/sfx/`. `AudioPlayer` assembles prompts by concatenating clip filenames and playing them in sequence. Missing clips are logged as warnings and skipped — the game continues. Use `tools/generate_silence.py` to create silent stubs for development.
+
+`AudioPlayer` also tracks `prompt_finish_time` (used to delay the round timer) and exposes `has_real_audio()`, which distinguishes real recordings from silent placeholder stubs (spotted via a `stat()` size check confirmed by an all-zero PCM read). The game uses this to choose audio-only vs on-screen-task mode. Tiny mode speaks the corner *symbol* (`prompt_symbol()` + `sym_*` clips), not the number it shows.
 
 ### Object colour
 
