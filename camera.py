@@ -27,6 +27,13 @@ FEED_W, FEED_H = 640, 480
 _V4L2_EXPOSURE_MANUAL = 0.25
 _V4L2_EXPOSURE_AUTO = 0.75
 
+# White-balance temperature (Kelvin) used when we lock AWB off. A mid, neutral
+# value for mixed indoor lighting — the exact figure matters far less than
+# *having* one. Disabling AWB without pinning a temperature leaves UVC webcams
+# (e.g. the Logitech C310) on unbalanced default gains, which casts the whole
+# frame magenta and poisons the HSV colour learnt during training.
+_WB_TEMPERATURE_K = 4600
+
 
 def _try_set(cap, prop, value, name):
     """Best-effort property set; UVC drivers silently reject unsupported props."""
@@ -44,6 +51,22 @@ def _frame_has_signal(cap) -> bool:
     return float(frame.mean()) > 8.0
 
 
+def _frame_color_balanced(cap) -> bool:
+    """Grab a frame and check no colour channel is badly starved.
+
+    When a manual white-balance lock isn't honoured, some webcams sit on
+    unbalanced gains that wash the frame magenta (the green channel collapses
+    relative to red/blue). If green falls far below the red/blue mean the lock
+    misfired and we should fall back to auto white balance. A real scene is
+    almost never this green-poor, so the test is safe."""
+    ret, frame = cap.read()
+    if not ret or frame is None:
+        return True  # can't tell — don't trigger a needless fallback
+    b, g, r = (float(frame[:, :, c].mean()) for c in range(3))
+    rb = max((r + b) / 2.0, 1.0)
+    return g >= 0.55 * rb
+
+
 def _tune_webcam(cap) -> None:
     """Apply USB-webcam tuning. Each step is best-effort and never fatal."""
     _try_set(cap, cv2.CAP_PROP_FRAME_WIDTH, FEED_W, "width")
@@ -55,7 +78,24 @@ def _tune_webcam(cap) -> None:
     # Stop focus hunting that blurs the sock and shifts its colour.
     _try_set(cap, cv2.CAP_PROP_AUTOFOCUS, 0, "autofocus")
     # Lock white balance — the single biggest HSV-hue stability win for webcams.
-    _try_set(cap, cv2.CAP_PROP_AUTO_WB, 0, "auto_wb")
+    # AWB must be turned off *and pinned to a fixed temperature*: disabling it
+    # alone leaves the C310 (and similar UVC cams) on unbalanced gains that cast
+    # the whole frame magenta and ruin colour training. Verify the result and
+    # revert to auto if the manual lock isn't honoured.
+    try:
+        cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+        _try_set(cap, cv2.CAP_PROP_WB_TEMPERATURE, _WB_TEMPERATURE_K, "wb_temperature")
+        # Warm up a couple of frames so the new gains settle.
+        for _ in range(2):
+            cap.read()
+        if _frame_color_balanced(cap):
+            logger.info("Camera: white balance locked (%dK)", _WB_TEMPERATURE_K)
+        else:
+            cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+            logger.info("Camera: WB lock cast the frame magenta — reverted to auto white balance")
+    except Exception:
+        cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+        logger.info("Camera: white balance lock unsupported — using auto white balance")
 
     # Exposure lock (best-effort). Forcing a blind exposure value risks a black
     # frame on an unknown webcam, so we switch to manual mode but leave the
