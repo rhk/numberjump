@@ -121,6 +121,13 @@ In Tiny mode the four symbols are placed at the four corners of the mat (zones 1
 - Play mat: 9 squares in a 3×3 grid (numbered for Junior/Challenge; symbol pictures for Tiny)
 - **Bright orange socks** worn by the player (orange is the most trackable colour — see [Sock colour](#sock-colour))
 
+### Camera mounting
+
+High angle, ideally 45–60° down from a shelf, door frame, or tripod.
+Full overhead (90°) is better if achievable. Minimum ~1.5–2m height to capture the full grid.
+Side-angle mounting causes perspective distortion (far zones appear smaller) and the player's body
+can occlude their feet — prefer a steep downward angle, not true side-on.
+
 ---
 
 ## Installation
@@ -332,3 +339,28 @@ Placed in `audio/sfx/`: `beep_1.wav`, `beep_2.wav`, `beep_3.wav`, `levelup.wav`
   ```
 - Use a fast SD card (Samsung or SanDisk A1/A2 class).
 - Wired speaker only — Bluetooth adds 100–200 ms latency.
+
+### Performance budget (Pi 3)
+
+A frame rate of **15–20 fps** is sufficient for movement tracking. Rough per-frame budget:
+
+```
+Camera capture + resize      ~15ms
+HSV colour blob detection    ~20ms
+Zone lookup                   ~1ms
+Game logic + audio trigger    ~3ms
+Total                        ~40ms  →  ~25fps headroom
+```
+
+---
+
+## Design decisions
+
+- Audio-first: game is fully playable without a screen
+- Pre-recorded audio clips only — no runtime TTS (too slow on Pi 3)
+- Webcam/RaspiCam over Kinect (simpler SDK, works on Pi 3)
+- Coloured sock over handheld marker (hands-free, tracks the right body part)
+- Startup calibration over hardcoded zones (handles any camera angle)
+- Wrong-zone visits don't fail a round — only the timeout does (kids-friendly)
+- Single player first
+- Indoor use, controlled lighting assumed

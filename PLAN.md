@@ -1,8 +1,9 @@
 # Floor Movement Game — Project Plan
 
-> **v1 is built.** The concept, feature set, hardware list, setup instructions and
-> tuning guides all live in [README.md](README.md). This file tracks only what the
-> README doesn't: design rationale, remaining work, and the improvement plan.
+> **v1 is built.** The concept, feature set, hardware and mounting notes, setup
+> instructions, tuning guides and design decisions all live in [README.md](README.md).
+> This file contains only planned work: remaining v1 gaps, the improvement plan, and
+> future ideas.
 
 ---
 
@@ -16,34 +17,6 @@ These are the pieces specced for the game that are **not yet implemented**:
 - **Welcome + SFX wiring** — `welcome.wav` and the `beep_*/levelup` SFX are generated as
   placeholders by `tools/generate_silence.py` but are never played by the game yet.
   (Planned in *Phase 3* below.)
-
----
-
-## Camera mounting notes
-
-High angle, ideally 45–60° down from a shelf, door frame, or tripod.
-Full overhead (90°) is better if achievable. Minimum ~1.5–2m height to capture the full grid.
-Side-angle mounting causes perspective distortion (far zones appear smaller) and the player's body
-can occlude their feet — prefer a steep downward angle, not true side-on.
-
-(Hardware list, sock-colour rules and Pi tuning tips are in the README.)
-
----
-
-## Performance budget (Pi 3)
-
-Target frame rate: **15–20 fps** is sufficient for movement tracking. Rough per-frame budget:
-
-```
-Camera capture + resize      ~15ms
-HSV colour blob detection    ~20ms
-Zone lookup                   ~1ms
-Game logic + audio trigger    ~3ms
-Total                        ~40ms  →  ~25fps headroom
-```
-
-Note: the current UI redraws the gradient background line-by-line every frame, which eats
-into this budget on a Pi 3 — fixing that is Phase 2 item 1 below.
 
 ---
 
@@ -167,16 +140,3 @@ names the files involved so it can be picked up independently.
 - Foam puzzle mat tiles replacing paper zones
 - Bluetooth speaker (note: 100–200ms latency, less reliable than wired)
 - Web dashboard for parents to track sessions
-
----
-
-## Key decisions made
-
-Rationale not restated in the README:
-
-- Webcam/RaspiCam over Kinect (simpler SDK, works on Pi 3)
-- Coloured sock over handheld marker (hands-free, tracks the right body part)
-- Startup calibration over hardcoded zones (handles any camera angle)
-- Wrong-zone visits don't fail a round — only the timeout does (kids-friendly)
-- Single player first
-- Indoor use, controlled lighting assumed
