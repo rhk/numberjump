@@ -185,7 +185,7 @@ The window scales to fill your screen automatically. It is not exclusive fullscr
 | ENTER | Start a round (from waiting screen); confirm calibration / colour sample |
 | R | Recalibrate the mat without restarting |
 | M | Cycle the detection view: off → colour overlay → pure mask (diagnose tracking) |
-| ESC | Quit |
+| ESC | In-game: return to the level menu (or, during an in-game **R** recalibration, cancel it and keep the previous calibration/colour). In a menu, or during startup calibration/colour training: quit |
 | Mouse click | Select menu buttons; click mat corners during calibration; click object during colour training |
 
 ---

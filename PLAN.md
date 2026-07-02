@@ -25,33 +25,28 @@ These are the pieces specced for the game that are **not yet implemented**:
 Findings from a full review of the codebase (2026-07), ordered into phases. Each item
 names the files involved so it can be picked up independently.
 
-### Phase 1 — Bug fixes
+### Phase 1 — Bug fixes ✅ done
 
-1. **ESC during in-game recalibration quits the whole app.**
-   `run_calibration()` / `run_color_training()` (`calibration.py`) handle ESC/QUIT by calling
-   `pygame.quit()` and raising `SystemExit`. The in-game **R** handler (`game.py`, `run()`)
-   wraps them in `except Exception:` intending "user cancelled — keep old settings", but
-   `SystemExit` derives from `BaseException`, so it sails through — and the display is already
-   torn down.
-   *Plan:* give both functions a `cancellable=True` mode that returns `None` on ESC instead of
-   quitting; only the startup path (in `main.py`) keeps quit-on-ESC. The R handler then treats
-   `None` as "cancelled, keep old transform/colour".
+1. ~~**ESC during in-game recalibration quits the whole app.**~~
+   `run_calibration()` / `run_color_training()` (`calibration.py`) now take a `cancellable`
+   flag; when `True` (used by the in-game **R** handler in `game.py`), ESC returns `None`
+   instead of quitting, and the caller keeps the previous transform/colour. The startup path
+   in `main.py` still calls both with the default `cancellable=False`, so quit-on-ESC is
+   unchanged there.
 
-2. **`--recalibrate` silently forces colour retraining.**
-   `save_calibration()` preserves `hsv_lower`/`hsv_upper` in the JSON file, but
-   `run_calibration()` returns a fresh dict *without* them, so `main.py` sees
-   `"hsv_lower" not in calib` and drops into colour training even though a trained colour exists.
-   *Plan:* have `run_calibration()` return the merged, saved dict (re-read via
-   `load_calibration()` after saving).
+2. ~~**`--recalibrate` silently forces colour retraining.**~~
+   `run_calibration()` now returns `load_calibration()`'s result after saving, so any
+   `hsv_lower`/`hsv_upper` already on disk (preserved by `save_calibration()`) comes back to
+   the caller too.
 
-3. **Corrupt `calibration.json` crashes at startup.**
-   `load_calibration()` does a bare `json.load` with no error handling; a truncated or
-   hand-edited file raises and kills the app.
-   *Plan:* catch `json.JSONDecodeError`/`KeyError`/missing fields, log a warning, return `None`
-   so the normal "no calibration → run calibration" path takes over.
+3. ~~**Corrupt `calibration.json` crashes at startup.**~~
+   `load_calibration()` now catches `json.JSONDecodeError`/`KeyError`/`OSError`, logs a
+   warning, and returns `None` so the normal "no calibration → run calibration" path takes
+   over.
 
-4. **README keyboard table says ESC = Quit.**
-   ESC is context-sensitive (in-game → level menu, menus → quit). Fix the table in README.md.
+4. ~~**README keyboard table says ESC = Quit.**~~
+   Fixed to describe the context-sensitive behaviour (in-game → level menu / cancel
+   recalibration, menus & startup calibration → quit).
 
 ### Phase 2 — Performance & code structure
 

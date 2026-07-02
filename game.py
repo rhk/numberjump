@@ -320,16 +320,18 @@ class Game:
                         if self.state == State.WAITING:
                             release_camera(self.cam_type, self.cam)
                             try:
-                                calib = run_calibration(screen, self.strings)
-                                self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
+                                calib = run_calibration(screen, self.strings, cancellable=True)
+                                if calib is not None:
+                                    self.transform_matrix = np.array(calib["transform"], dtype=np.float64)
                             except Exception:
-                                pass  # user cancelled or calibration failed — keep old transform
+                                pass  # calibration failed — keep old transform
                             try:
-                                color = run_color_training(screen, self.strings)
-                                self.tracker.hsv_lower = np.array(color["hsv_lower"], dtype=np.uint8)
-                                self.tracker.hsv_upper = np.array(color["hsv_upper"], dtype=np.uint8)
+                                color = run_color_training(screen, self.strings, cancellable=True)
+                                if color is not None:
+                                    self.tracker.hsv_lower = np.array(color["hsv_lower"], dtype=np.uint8)
+                                    self.tracker.hsv_upper = np.array(color["hsv_upper"], dtype=np.uint8)
                             except Exception:
-                                pass  # user cancelled or training failed — keep old colour
+                                pass  # training failed — keep old colour
                             self.cam_type, self.cam = open_camera()
 
             frame = grab_frame(self.cam_type, self.cam) if self.cam_type else None
