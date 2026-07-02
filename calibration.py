@@ -17,12 +17,22 @@ WINDOW_W, WINDOW_H = 800, 600
 
 
 def load_calibration() -> Optional[dict]:
-    """Load calibration.json if it exists."""
-    if CALIBRATION_FILE.exists():
+    """Load calibration.json if it exists and is well-formed.
+
+    A truncated or hand-edited file must not crash startup — treat it the
+    same as "no calibration yet" so the normal calibration flow takes over.
+    """
+    if not CALIBRATION_FILE.exists():
+        return None
+    try:
         with CALIBRATION_FILE.open() as f:
             data = json.load(f)
+        if "transform" not in data:
+            raise KeyError("transform")
         return data
-    return None
+    except (json.JSONDecodeError, KeyError, OSError) as e:
+        logger.warning(f"Ignoring invalid {CALIBRATION_FILE}: {e}")
+        return None
 
 
 def save_calibration(corners: list, transform: list) -> None:
@@ -53,10 +63,15 @@ def save_color(hsv_lower: tuple, hsv_upper: tuple) -> None:
     logger.info(f"Color saved: lower={hsv_lower} upper={hsv_upper}")
 
 
-def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
+def run_calibration(screen: pygame.Surface, strings: dict, cancellable: bool = False) -> Optional[dict]:
     """
     Show live camera feed. User clicks 4 corners (TL, TR, BR, BL).
-    Returns calibration dict with 'corners' and 'transform'.
+    Returns the saved calibration dict (with 'corners', 'transform', and any
+    preserved 'hsv_lower'/'hsv_upper' fields).
+
+    If `cancellable` is True, pressing ESC returns None instead of quitting
+    the app (used for in-game recalibration, where the caller should keep the
+    previous calibration). Closing the window (QUIT) always exits the app.
     """
     cam_type, cam = open_camera()
 
@@ -88,6 +103,7 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
 
     corners = []      # stored in original 640×480 camera coords
     done = False
+    cancelled = False
 
     # Display feed scaled down to fit: title(50) + feed(420) + panel(88) + gaps = ~580 < 600
     DISP_W, DISP_H = 560, 420
@@ -99,9 +115,17 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
     while not done:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                if cam_type is not None:
+                    release_camera(cam_type, cam)
                 pygame.quit()
                 raise SystemExit
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if cancellable:
+                    cancelled = True
+                    done = True
+                    break
+                if cam_type is not None:
+                    release_camera(cam_type, cam)
                 pygame.quit()
                 raise SystemExit
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -117,6 +141,9 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                 if len(corners) == 4:
                     done = True
+
+        if cancelled:
+            break
 
         frame = None
         if cam_type is not None:
@@ -211,18 +238,19 @@ def run_calibration(screen: pygame.Surface, strings: dict) -> dict:
     if cam_type is not None:
         release_camera(cam_type, cam)
 
+    if cancelled:
+        return None
+
     # Compute perspective transform
     src = np.float32(corners)
 
     dst = np.float32([[0, 0], [640, 0], [640, 480], [0, 480]])
     M = cv2.getPerspectiveTransform(src, dst)
 
-    calib = {
-        "corners": corners,
-        "transform": M.tolist(),
-    }
     save_calibration(corners, M.tolist())
-    return calib
+    # Re-read from disk so any previously trained hsv_lower/hsv_upper (merged
+    # in by save_calibration) come back to the caller too.
+    return load_calibration()
 
 
 def _clamp_int(val: float, lo: int, hi: int) -> int:
@@ -296,10 +324,14 @@ def _compute_hsv_range(patch_bgr: np.ndarray) -> tuple[tuple, tuple]:
     return lower, upper
 
 
-def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
+def run_color_training(screen: pygame.Surface, strings: dict, cancellable: bool = False) -> Optional[dict]:
     """
     Show live camera feed. User clicks on the trackable object to sample its color.
     Returns dict with 'hsv_lower' and 'hsv_upper'.
+
+    If `cancellable` is True, pressing ESC returns None instead of quitting the
+    app (used for in-game retraining, where the caller should keep the previous
+    colour). Closing the window (QUIT) always exits the app.
     """
     cam_type, cam = open_camera()
 
@@ -323,6 +355,7 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
     clock = pygame.time.Clock()
     warmup_frames = 0
     ready = False
+    cancelled = False
 
     while True:
         for event in pygame.event.get():
@@ -330,6 +363,9 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
                 pygame.quit()
                 raise SystemExit
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if cancellable:
+                    cancelled = True
+                    break
                 pygame.quit()
                 raise SystemExit
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and ready:
@@ -427,11 +463,14 @@ def run_color_training(screen: pygame.Surface, strings: dict) -> dict:
             clock.tick(30)
             continue
 
-        # Exited the for-loop via break (ENTER pressed with a sample)
+        # Exited the for-loop via break (ENTER pressed with a sample, or ESC cancelled)
         break
 
     if cam_type is not None:
         release_camera(cam_type, cam)
+
+    if cancelled:
+        return None
 
     save_color(sampled_lower, sampled_upper)
     return {"hsv_lower": list(sampled_lower), "hsv_upper": list(sampled_upper)}
